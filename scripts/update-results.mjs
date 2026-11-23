@@ -5,6 +5,7 @@ import { pathToFileURL } from "node:url";
 
 const SOURCE_URL = "https://lotorama.com.br/lotofacil/todos-os-resultados/";
 const CSV_URL = "https://lotorama.com.br/wp-content/uploads/loterias-pro/lotofacil-download-resultados.csv";
+const CAIXA_URL = "https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil";
 const OUTPUT = resolve(import.meta.dirname, "../data/lotofacil.json");
 const weekdayFormat = new Intl.DateTimeFormat("pt-BR", { weekday: "long", timeZone: "UTC" });
 
@@ -57,7 +58,7 @@ function parsePage(html) {
 
 async function fetchResults(url) {
   const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
-  if (!response.ok) throw new Error(`O Lotorama retornou HTTP ${response.status}.`);
+  if (!response.ok) throw new Error(`${new URL(url).hostname} retornou HTTP ${response.status}.`);
   return response.text();
 }
 
@@ -71,11 +72,10 @@ async function readCurrent() {
   }
 }
 
-async function syncResults() {
+async function readLotoramaResults(current) {
   const html = await fetchResults(SOURCE_URL);
   const recent = parsePage(html);
   const latest = Math.max(...recent.map(({ contest }) => contest));
-  const current = await readCurrent();
   if (current?.latest_contest > latest) {
     throw new Error("O Lotorama retornou um histórico mais antigo que a base salva.");
   }
@@ -100,13 +100,50 @@ async function syncResults() {
   if (results.length !== latest || results.some(({ contest }, index) => contest !== latest - index)) {
     throw new Error(`O histórico retornado está incompleto. Esperados os concursos 1 a ${latest}.`);
   }
+  return results;
+}
 
-  if (current?.source === SOURCE_URL && JSON.stringify(current.results) === JSON.stringify(results)) {
+async function readCaixaContest(url) {
+  const { numero, dataApuracao, listaDezenas } = JSON.parse(await fetchResults(url));
+  return parseContest(String(numero), dataApuracao, listaDezenas ?? []);
+}
+
+async function readCaixaResults(current) {
+  if (!current?.results.length) throw new Error("A base histórica é necessária para a atualização pela Caixa.");
+
+  const latest = await readCaixaContest(CAIXA_URL);
+  if (current.latest_contest > latest.contest) throw new Error("A Caixa retornou um histórico mais antigo que a base salva.");
+
+  const byContest = new Map(current.results.map((entry) => [entry.contest, entry]));
+  byContest.set(latest.contest, latest);
+  const results = [];
+  for (let contest = latest.contest; contest >= 1; contest -= 1) {
+    const entry = byContest.get(contest) ?? await readCaixaContest(`${CAIXA_URL}/${contest}`);
+    if (entry.contest !== contest) throw new Error(`A Caixa retornou um resultado diferente do concurso ${contest}.`);
+    results.push(entry);
+  }
+  return results;
+}
+
+async function syncResults() {
+  const current = await readCurrent();
+  let source = SOURCE_URL;
+  let results;
+  try {
+    results = await readLotoramaResults(current);
+  } catch (error) {
+    console.warn(`Consulta ao Lotorama indisponível: ${error.message} Consultando a Caixa.`);
+    source = CAIXA_URL;
+    results = await readCaixaResults(current);
+    console.log(`Resultados confirmados pela Caixa até o concurso ${results[0].contest}.`);
+  }
+
+  if (current && JSON.stringify(current.results) === JSON.stringify(results)) {
     return current;
   }
 
   const payload = {
-    source: SOURCE_URL,
+    source,
     updated_at: new Date().toISOString(),
     total_contests: results.length,
     latest_contest: results[0].contest,

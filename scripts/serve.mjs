@@ -41,7 +41,7 @@ async function refreshResults() {
     const payload = await update();
     console.log(`Resultados conferidos até o concurso ${payload.latest_contest}.`);
   } catch (error) {
-    console.warn(`Não consegui consultar o Lotorama: ${error.message}. A base salva continua disponível.`);
+    console.warn(`Não consegui atualizar os resultados: ${error.message} A base salva continua disponível.`);
   }
 }
 

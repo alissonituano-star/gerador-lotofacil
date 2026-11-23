@@ -75,7 +75,7 @@ Depois de subir para um repositorio no GitHub:
 3. Em `Build and deployment`, selecione `GitHub Actions`.
 4. O workflow `Publicar sistema` vai publicar o site.
 
-O workflow tenta atualizar a base duas vezes por hora. Se a consulta ao Lotorama falhar, o site continua com a última base salva.
+O workflow tenta atualizar a base duas vezes por hora. Se a consulta ao Lotorama falhar, o sistema busca na Caixa os concursos que faltam na base local. Se as duas fontes estiverem indisponíveis, o site continua com a última base salva.
 
 O metodo mais confiavel para atualizar automaticamente no GitHub e deixar o Windows rodar este arquivo uma vez por dia:
 
