@@ -10,6 +10,7 @@ const hostArg = process.argv.find((arg) => arg.startsWith("--host="));
 const portArg = process.argv.find((arg) => arg.startsWith("--port="));
 const PORT = Number(portArg?.split("=")[1] || process.env.PORT || 8000);
 const HOST = hostArg?.split("=")[1] || process.env.HOST || "127.0.0.1";
+const UPDATE_INTERVAL = 15 * 60_000;
 
 const types = {
   ".html": "text/html; charset=utf-8",
@@ -33,6 +34,15 @@ function localAddresses() {
     .flat()
     .filter((item) => item && item.family === "IPv4" && !item.internal)
     .map((item) => item.address);
+}
+
+async function refreshResults() {
+  try {
+    const payload = await update();
+    console.log(`Resultados conferidos até o concurso ${payload.latest_contest}.`);
+  } catch (error) {
+    console.warn(`Não consegui consultar o Lotorama: ${error.message}. A base salva continua disponível.`);
+  }
 }
 
 createServer(async (request, response) => {
@@ -62,7 +72,16 @@ createServer(async (request, response) => {
 
   const info = await stat(filePath);
   const finalPath = info.isDirectory() ? join(filePath, "index.html") : filePath;
-  response.writeHead(200, { "content-type": types[extname(finalPath)] || "application/octet-stream" });
+  const headers = { "content-type": types[extname(finalPath)] || "application/octet-stream" };
+  if (finalPath === join(ROOT, "data", "lotofacil.json")) {
+    headers["cache-control"] = "no-cache";
+    headers.etag = `W/"${info.size}-${info.mtimeMs}"`;
+    if (request.headers["if-none-match"] === headers.etag) {
+      response.writeHead(304, headers).end();
+      return;
+    }
+  }
+  response.writeHead(200, headers);
   createReadStream(finalPath).pipe(response);
 }).listen(PORT, HOST, () => {
   console.log(`Servidor local: http://127.0.0.1:${PORT}`);
@@ -71,4 +90,6 @@ createServer(async (request, response) => {
       console.log(`Celular na mesma rede: http://${address}:${PORT}`);
     });
   }
+  void refreshResults();
+  setInterval(refreshResults, UPDATE_INTERVAL).unref();
 });

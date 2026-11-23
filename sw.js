@@ -1,4 +1,4 @@
-const CACHE_NAME = "gerador-lotofacil-v6";
+const CACHE_NAME = "gerador-lotofacil-v7";
 const APP_FILES = [
   "./",
   "./index.html",
@@ -32,9 +32,15 @@ self.addEventListener("fetch", (event) => {
 
   event.respondWith(
     fetch(event.request)
-      .then((response) => {
-        const copy = response.clone();
-        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, copy));
+      .then(async (response) => {
+        if (response.ok) {
+          try {
+            const cache = await caches.open(CACHE_NAME);
+            await cache.put(event.request, response.clone());
+          } catch {
+            // Uma falha de cache não impede o acesso ao conteúdo online.
+          }
+        }
         return response;
       })
       .catch(() => caches.match(event.request).then((cached) => cached || caches.match("./index.html"))),

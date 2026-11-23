@@ -4,7 +4,7 @@ Sistema local para baixar resultados historicos da Lotofacil no Lotorama e anali
 
 ## Como usar
 
-1. Abra o sistema. Ele atualiza a base automaticamente antes de iniciar:
+1. Abra o sistema. Ele consulta o histórico completo do Lotorama na inicialização e a cada 15 minutos enquanto o servidor estiver rodando:
 
 ```powershell
 npm run dev
@@ -42,7 +42,7 @@ Depois que o site estiver aberto no celular:
 - Android/Chrome: toque em `Instalar` quando o botao aparecer, ou abra o menu do Chrome e toque em `Adicionar a tela inicial`.
 - iPhone/Safari: toque em compartilhar e depois em `Adicionar a Tela de Inicio`.
 
-O app tambem tem cache offline. Se a internet cair, ele tenta abrir com a ultima base carregada.
+O app tambem tem cache offline. Se a internet cair, ele tenta abrir com a ultima base carregada. A página verifica a base a cada minuto e atualiza o diário quando chegam novos resultados.
 
 Para atualizar sem abrir o sistema:
 
@@ -64,8 +64,6 @@ npm run force
 
 No modo local (`npm run dev` ou `npm run mobile`), a tela tambem tem o botao `Atualizar`, que baixa os resultados na hora e mostra a data da ultima atualizacao.
 
-Se preferir Python e ele estiver instalado, o script equivalente fica em `scripts/update_results.py`.
-
 ## Rodar online pelo GitHub Pages
 
 Este projeto tambem esta preparado para GitHub Pages.
@@ -77,7 +75,7 @@ Depois de subir para um repositorio no GitHub:
 3. Em `Build and deployment`, selecione `GitHub Actions`.
 4. O workflow `Publicar sistema` vai publicar o site.
 
-O workflow tenta atualizar a base todos os dias as 23:00 UTC, mas o Lotorama pode bloquear servidores do GitHub com erro `HTTP 403`.
+O workflow tenta atualizar a base duas vezes por hora. Se a consulta ao Lotorama falhar, o site continua com a última base salva.
 
 O metodo mais confiavel para atualizar automaticamente no GitHub e deixar o Windows rodar este arquivo uma vez por dia:
 

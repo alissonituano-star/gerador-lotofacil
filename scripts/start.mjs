@@ -19,14 +19,6 @@ function run(command, commandArgs) {
   });
 }
 
-console.log("Atualizando resultados antes de abrir o sistema...");
-try {
-  await run("node", ["scripts/update-results.mjs"]);
-} catch (error) {
-  console.warn(`Nao consegui atualizar agora: ${error.message}`);
-  console.warn("Vou abrir com a base salva localmente.");
-}
-
 const serveArgs = ["scripts/serve.mjs"];
 if (hostArg) serveArgs.push(hostArg);
 if (portArg) serveArgs.push(portArg);

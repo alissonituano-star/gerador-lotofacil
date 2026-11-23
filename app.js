@@ -1,5 +1,6 @@
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const STORAGE_KEY = "lotofacil-played-games-v1";
+const DATA_REFRESH_INTERVAL = 60_000;
 const state = {
   data: null,
   analysis: null,
@@ -698,9 +699,11 @@ async function copyGames() {
 }
 
 async function loadData() {
-  const response = await fetch(`data/lotofacil.json?v=${Date.now()}`, { cache: "no-store" });
+  const response = await fetch("data/lotofacil.json", { cache: "no-cache" });
   if (!response.ok) throw new Error("Nao foi possivel carregar data/lotofacil.json");
-  state.data = await response.json();
+  const data = await response.json();
+  if (state.data && data.updated_at <= state.data.updated_at) return;
+  state.data = data;
   refreshAnalysis();
 }
 
@@ -806,7 +809,7 @@ async function init() {
   try {
     await loadData();
   } catch (error) {
-    $("#status").textContent = error.message;
+    if (!state.data) $("#status").textContent = error.message;
   }
 }
 
@@ -826,3 +829,7 @@ installButtons().forEach((button) => button.addEventListener("click", installApp
 
 setupPwa();
 init();
+setInterval(init, DATA_REFRESH_INTERVAL);
+document.addEventListener("visibilitychange", () => {
+  if (!document.hidden) init();
+});
