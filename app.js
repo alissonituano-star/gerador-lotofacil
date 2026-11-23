@@ -1,6 +1,8 @@
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const STORAGE_KEY = "lotofacil-played-games-v1";
 const DATA_REFRESH_INTERVAL = 60_000;
+const HISTORICAL_SIMILARITY_WINDOW = 500;
+const BACKTEST_RECENT_WINDOW = 120;
 const state = {
   data: null,
   analysis: null,
@@ -85,6 +87,10 @@ function intersectionCount(a, b) {
   return a.filter((number) => b.includes(number)).length;
 }
 
+function numberMask(numbers) {
+  return numbers.reduce((mask, number) => mask | (1 << (number - 1)), 0);
+}
+
 function maxSequentialRun(numbers) {
   let best = 1;
   let current = 1;
@@ -135,44 +141,14 @@ function isStrongEnough(numbers, analysis) {
   return gameIssues(numbers, analysis).length === 0;
 }
 
-function analyze(results, recentWindow) {
-  const sorted = [...results].sort((a, b) => b.contest - a.contest);
-  const recent = sorted.slice(0, recentWindow);
-  const total = sorted.length;
-  const frequency = Object.fromEntries(NUMBERS.map((number) => [number, 0]));
-  const recentFrequency = Object.fromEntries(NUMBERS.map((number) => [number, 0]));
-  const delay = Object.fromEntries(NUMBERS.map((number) => [number, null]));
-  const pairCounts = new Map();
-  const sums = [];
+function buildRanking(frequency, recentFrequency, delay, total) {
+  const maxFreq = Math.max(...NUMBERS.map((number) => frequency[number]));
+  const maxRecent = Math.max(1, ...NUMBERS.map((number) => recentFrequency[number]));
+  const maxDelay = Math.max(...NUMBERS.map((number) => delay[number] ?? total));
 
-  sorted.forEach((draw, drawIndex) => {
-    sums.push(draw.numbers.reduce((sum, number) => sum + number, 0));
-    draw.numbers.forEach((number) => {
-      frequency[number] += 1;
-      if (delay[number] === null) delay[number] = drawIndex;
-    });
-    combinations(draw.numbers, 2).forEach(([a, b]) => {
-      const key = `${a}-${b}`;
-      pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
-    });
-  });
-
-  recent.forEach((draw) => {
-    draw.numbers.forEach((number) => {
-      recentFrequency[number] += 1;
-    });
-  });
-
-  const freqValues = NUMBERS.map((number) => frequency[number]);
-  const recentValues = NUMBERS.map((number) => recentFrequency[number]);
-  const delayValues = NUMBERS.map((number) => delay[number] ?? sorted.length);
-  const maxFreq = Math.max(...freqValues);
-  const maxRecent = Math.max(...recentValues);
-  const maxDelay = Math.max(...delayValues);
-
-  const ranking = NUMBERS.map((number) => {
+  return NUMBERS.map((number) => {
     const freqScore = frequency[number] / maxFreq;
-    const recentScore = recentFrequency[number] / Math.max(maxRecent, 1);
+    const recentScore = recentFrequency[number] / maxRecent;
     const delayScore = (delay[number] ?? maxDelay) / Math.max(maxDelay, 1);
     const score = freqScore * 0.45 + recentScore * 0.35 + delayScore * 0.2;
     return {
@@ -180,20 +156,50 @@ function analyze(results, recentWindow) {
       frequency: frequency[number],
       percentage: frequency[number] / total,
       recentFrequency: recentFrequency[number],
-      delay: delay[number] ?? sorted.length,
+      delay: delay[number] ?? total,
       score,
     };
   }).sort((a, b) => b.score - a.score);
+}
 
+function analyze(results, recentWindow) {
+  const sorted = [...results].sort((a, b) => b.contest - a.contest);
+  const recent = sorted.slice(0, recentWindow);
+  const frequency = new Uint32Array(26);
+  const recentFrequency = new Uint32Array(26);
+  const delay = [];
+  const pairCounts = new Map();
+  const sums = [];
+
+  sorted.forEach(({ numbers }, drawIndex) => {
+    sums.push(numbers.reduce((sum, number) => sum + number, 0));
+    numbers.forEach((number, index) => {
+      frequency[number] += 1;
+      delay[number] ??= drawIndex;
+      for (let other = index + 1; other < numbers.length; other += 1) {
+        const key = number * 26 + numbers[other];
+        pairCounts.set(key, (pairCounts.get(key) || 0) + 1);
+      }
+    });
+  });
+
+  recent.forEach(({ numbers }) => {
+    for (const number of numbers) recentFrequency[number] += 1;
+  });
+
+  const ranking = buildRanking(frequency, recentFrequency, delay, sorted.length);
   const pairs = [...pairCounts.entries()]
-    .map(([key, count]) => ({ key, count, numbers: key.split("-").map(Number) }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, 12);
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 12)
+    .map(([key, count]) => ({ count, numbers: [Math.floor(key / 26), key % 26] }));
 
   return {
     sorted,
     recent,
     ranking,
+    rankByNumber: Object.fromEntries(ranking.map((item) => [item.number, item])),
+    pool: buildWeightedPool(ranking),
+    historicalMasks: sorted.slice(0, HISTORICAL_SIMILARITY_WINDOW).map(({ numbers }) => numberMask(numbers)),
     pairs,
     avgSum: average(sums),
     minSum: Math.min(...sums),
@@ -211,10 +217,19 @@ function selectedLastRepeatRange(size) {
   return value.split("-").map(Number);
 }
 
-function maxHistoricalSimilarity(numbers, analysis, limit = 500) {
-  return analysis.sorted.slice(0, limit).reduce((best, draw) => (
-    Math.max(best, intersectionCount(numbers, draw.numbers))
-  ), 0);
+function maxHistoricalSimilarity(numbers, analysis) {
+  const mask = numberMask(numbers);
+  let best = 0;
+  for (const historicalMask of analysis.historicalMasks) {
+    let shared = mask & historicalMask;
+    let count = 0;
+    while (shared) {
+      shared &= shared - 1;
+      count += 1;
+    }
+    best = Math.max(best, count);
+  }
+  return best;
 }
 
 function explainGame(numbers, analysis) {
@@ -235,8 +250,7 @@ function explainGame(numbers, analysis) {
   ];
 }
 
-function scoreGame(numbers, analysis, strategy) {
-  const rankByNumber = Object.fromEntries(analysis.ranking.map((item) => [item.number, item]));
+function scoreGame(numbers, analysis, strategy, issueCount = gameIssues(numbers, analysis).length) {
   const profile = gameProfile(numbers);
 
   const profileWeights = {
@@ -247,7 +261,7 @@ function scoreGame(numbers, analysis, strategy) {
   }[strategy];
 
   const raw = numbers.reduce((total, number) => {
-    const item = rankByNumber[number];
+    const item = analysis.rankByNumber[number];
     return total
       + item.score * profileWeights.score
       + item.delay * profileWeights.delay / 100
@@ -260,27 +274,26 @@ function scoreGame(numbers, analysis, strategy) {
   const lowPenalty = Math.abs(profile.low - numbers.length / 2) * 0.12;
   const rowPenalty = profile.rows.filter((value) => value === 0 || value > 4).length * 0.18;
   const colPenalty = profile.cols.filter((value) => value === 0 || value > 4).length * 0.12;
-  const issuePenalty = gameIssues(numbers, analysis).length * 0.45;
+  const issuePenalty = issueCount * 0.45;
 
   return raw - sumPenalty - oddPenalty - lowPenalty - rowPenalty - colPenalty - issuePenalty;
 }
 
-function createCandidate(analysis, strategy, size) {
-  const pool = analysis.ranking.map((item, index) => {
+function buildWeightedPool(ranking) {
+  return ranking.flatMap((item, index) => {
     const weight = Math.max(1, Math.round((26 - index) * (1 + item.score)));
     return Array.from({ length: weight }, () => item.number);
-  }).flat();
+  });
+}
+
+function pickNumbers(pool, size) {
   const chosen = new Set();
 
   while (chosen.size < size) {
     chosen.add(pool[Math.floor(Math.random() * pool.length)]);
   }
 
-  const numbers = [...chosen].sort((a, b) => a - b);
-  return {
-    numbers,
-    score: scoreGame(numbers, analysis, strategy),
-  };
+  return [...chosen].sort((a, b) => a - b);
 }
 
 function generateGames() {
@@ -289,6 +302,7 @@ function generateGames() {
   const count = mode === "daily" ? 1 : requestedCount;
   const size = Number($("#gameSize").value);
   const strategy = $("#strategy").value;
+  const analysis = state.analysis;
   const playedKeys = new Set(getPlayedGames().map((entry) => entry.key));
   const seen = new Set();
   const candidates = [];
@@ -300,20 +314,20 @@ function generateGames() {
   }
 
   for (let attempt = 0; attempt < count * 160; attempt += 1) {
-    const candidate = createCandidate(state.analysis, strategy, size);
-    const key = candidate.numbers.join("-");
-    if (!seen.has(key) && !playedKeys.has(gameKey(candidate.numbers)) && isStrongEnough(candidate.numbers, state.analysis)) {
+    const numbers = pickNumbers(analysis.pool, size);
+    const key = gameKey(numbers);
+    if (!seen.has(key) && !playedKeys.has(key) && isStrongEnough(numbers, analysis)) {
       seen.add(key);
-      candidates.push(candidate);
+      candidates.push({ numbers, score: scoreGame(numbers, analysis, strategy, 0) });
     }
   }
 
   for (let attempt = 0; candidates.length < count && attempt < count * 120; attempt += 1) {
-    const candidate = createCandidate(state.analysis, strategy, size);
-    const key = candidate.numbers.join("-");
-    if (!seen.has(key) && !playedKeys.has(gameKey(candidate.numbers))) {
+    const numbers = pickNumbers(analysis.pool, size);
+    const key = gameKey(numbers);
+    if (!seen.has(key) && !playedKeys.has(key)) {
       seen.add(key);
-      candidates.push(candidate);
+      candidates.push({ numbers, score: scoreGame(numbers, analysis, strategy) });
     }
   }
 
@@ -344,12 +358,12 @@ function generateClosureGames(count, strategy, playedKeys) {
     const key = gameKey(numbers);
     if (!seen.has(key) && !playedKeys.has(key) && isStrongEnough(numbers, state.analysis)) {
       seen.add(key);
-      games.push({ numbers, score: scoreGame(numbers, state.analysis, strategy), base });
+      games.push({ numbers, score: scoreGame(numbers, state.analysis, strategy, 0), base });
     }
   }
 
   for (let attempt = 0; games.length < count && attempt < count * 80; attempt += 1) {
-    const numbers = createCandidate(state.analysis, strategy, 15).numbers;
+    const numbers = pickNumbers(state.analysis.pool, 15);
     const key = gameKey(numbers);
     if (!seen.has(key) && !playedKeys.has(key)) {
       seen.add(key);
@@ -494,40 +508,49 @@ function renderBacktest() {
   renderStrategyBacktest();
 }
 
-function buildStrategyGame(strategy, drawIndex) {
-  const historical = state.analysis.sorted.slice(drawIndex + 1);
-  if (historical.length < 120) return null;
-  const analysis = analyze(historical, Math.min(120, historical.length));
-  const candidate = createCandidate(analysis, strategy, 15);
-  return candidate.numbers;
+function buildBacktestPools(sorted, sampleSize) {
+  const pools = [];
+  const frequency = new Uint32Array(26);
+  const lastSeen = [];
+
+  // Each pool uses only draws older than the draw being simulated.
+  for (let index = sorted.length - 1; index > 0; index -= 1) {
+    for (const number of sorted[index].numbers) {
+      frequency[number] += 1;
+      lastSeen[number] = index;
+    }
+    if (index > sampleSize) continue;
+
+    const recentFrequency = new Uint32Array(26);
+    const recentEnd = Math.min(index + BACKTEST_RECENT_WINDOW, sorted.length);
+    for (let recentIndex = index; recentIndex < recentEnd; recentIndex += 1) {
+      for (const number of sorted[recentIndex].numbers) recentFrequency[number] += 1;
+    }
+    const delay = lastSeen.map((lastIndex) => lastIndex - index);
+    const ranking = buildRanking(frequency, recentFrequency, delay, sorted.length - index);
+    pools[index - 1] = buildWeightedPool(ranking);
+  }
+  return pools;
 }
 
 function renderStrategyBacktest() {
-  const strategies = [
-    ["balanced", "Equilibrado"],
-    ["hot", "Mais sorteados"],
-    ["overdue", "Mais atrasados"],
-    ["mixed", "Misto agressivo"],
-  ];
-  const sampleSize = Math.min(80, state.analysis.sorted.length - 140);
+  const strategies = ["balanced", "hot", "overdue", "mixed"];
+  const { sorted } = state.analysis;
+  const sampleSize = Math.min(80, sorted.length - 140);
   if (sampleSize <= 10) {
     $("#strategyBacktest").innerHTML = "";
     return;
   }
 
-  const rows = strategies.map(([strategy, label]) => {
-    const matches = [];
-    for (let index = 0; index < sampleSize; index += 1) {
-      const game = buildStrategyGame(strategy, index);
-      if (!game) continue;
-      matches.push(intersectionCount(game, state.analysis.sorted[index].numbers));
-    }
+  const pools = buildBacktestPools(sorted, sampleSize);
+  const rows = strategies.map((strategy) => {
+    const matches = pools.map((pool, index) => intersectionCount(pickNumbers(pool, 15), sorted[index].numbers));
     const buckets = { 11: 0, 12: 0, 13: 0, 14: 0, 15: 0 };
     matches.forEach((hits) => {
       if (hits >= 11) buckets[hits] += 1;
     });
     return {
-      label,
+      label: strategyLabel(strategy),
       avg: average(matches),
       best: Math.max(...matches),
       buckets,
@@ -802,7 +825,6 @@ function refreshAnalysis() {
   renderRanking();
   renderPairs();
   generateGames();
-  renderHistory();
 }
 
 async function init() {
