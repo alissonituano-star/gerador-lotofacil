@@ -93,6 +93,12 @@ h2 {
   display: none;
 }
 
+[hidden],
+.mobile-install,
+.controls.daily-mode .multiple-mode {
+  display: none !important;
+}
+
 .panel {
   background: var(--panel);
   border: 1px solid var(--line);
@@ -156,7 +162,7 @@ button:hover {
 }
 
 button:disabled {
-  cursor: wait;
+  cursor: default;
   opacity: 0.68;
 }
 
@@ -227,6 +233,49 @@ button:disabled {
   color: var(--muted);
   font-size: 13px;
   line-height: 1.45;
+}
+
+.panel-details {
+  margin-top: 14px;
+}
+
+.panel-details summary {
+  padding: 8px 0;
+  color: var(--brand-dark);
+  font-size: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.panel-details form {
+  display: grid;
+  gap: 8px;
+}
+
+.comparison-table {
+  width: 100%;
+  margin-top: 10px;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.comparison-table th,
+.comparison-table td {
+  padding: 8px 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.comparison-table th:first-child {
+  text-align: left;
+}
+
+.diary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
 }
 
 .metrics {
@@ -695,6 +744,13 @@ button:disabled {
 }
 
 @media (max-width: 760px) {
+  .mobile-install:not([hidden]) {
+    display: block !important;
+  }
+
+  .recommendation {
+    order: -2;
+  }
   body {
     background: #ffffff;
   }

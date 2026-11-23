@@ -1,5 +1,7 @@
+import { createDailyGame, testDailyGame } from "./daily-model.js";
+import { decodeDiary, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js";
+
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
-const STORAGE_KEY = "lotofacil-played-games-v1";
 const DATA_REFRESH_INTERVAL = 60_000;
 const HISTORICAL_SIMILARITY_WINDOW = 500;
 const BACKTEST_RECENT_WINDOW = 120;
@@ -7,6 +9,10 @@ const state = {
   data: null,
   analysis: null,
   games: [],
+  daily: null,
+  benchmarkBase: null,
+  historyLimit: 12,
+  manualDefaultContest: null,
   installPrompt: null,
 };
 
@@ -15,22 +21,6 @@ const installButtons = () => [$("#installApp"), $("#installAppMobile")].filter(B
 
 function formatNumber(value) {
   return String(value).padStart(2, "0");
-}
-
-function gameKey(numbers) {
-  return [...numbers].sort((a, b) => a - b).map(formatNumber).join("-");
-}
-
-function getPlayedGames() {
-  try {
-    return JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]");
-  } catch {
-    return [];
-  }
-}
-
-function setPlayedGames(entries) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries.slice(0, 250)));
 }
 
 function average(values) {
@@ -297,13 +287,22 @@ function pickNumbers(pool, size) {
 }
 
 function generateGames() {
+  if (!state.analysis) return;
   const mode = $("#generationMode").value;
-  const requestedCount = Number($("#gameCount").value);
-  const count = mode === "daily" ? 1 : requestedCount;
+  const analysis = state.analysis;
+  const diary = getPlayedGames();
+  state.daily = mode === "daily" ? createDailyGame(analysis.sorted, diary) : null;
+
+  if (state.daily) {
+    state.games = [{ numbers: state.daily.numbers }];
+    finishGeneration();
+    return;
+  }
+
+  const count = Number($("#gameCount").value);
   const size = Number($("#gameSize").value);
   const strategy = $("#strategy").value;
-  const analysis = state.analysis;
-  const playedKeys = new Set(getPlayedGames().map((entry) => entry.key));
+  const playedKeys = new Set(diary.map((entry) => gameKey(entry.numbers)));
   const seen = new Set();
   const candidates = [];
 
@@ -377,10 +376,29 @@ function generateClosureGames(count, strategy, playedKeys) {
 }
 
 function finishGeneration() {
+  const isDaily = Boolean(state.daily);
   updateStrategyNote();
-  renderGames();
-  renderCoverage();
-  renderBacktest();
+  $("#gameControls").classList.toggle("daily-mode", isDaily);
+  $("#generate").hidden = isDaily;
+  $("#gameHeading").textContent = isDaily ? "Jogo do dia" : "Jogos sugeridos";
+  $("#gameContest").textContent = `Concurso ${nextContest()}`;
+  $("#savePlayed").disabled = !state.games.length || Boolean(state.daily?.registered);
+  $("#savePlayed").textContent = state.daily?.registered ? "Jogo registrado" : "Registrar jogo";
+  $("#dailyDetails").hidden = !isDaily;
+  $("#coverage").hidden = isDaily;
+  $("#fairChance").hidden = !isDaily;
+  $("#legacyBacktestNote").hidden = isDaily;
+  $("#backtest").hidden = isDaily;
+  $("#strategyBacktest").hidden = isDaily;
+  $("#dailyBenchmark").hidden = !isDaily;
+  if (isDaily) {
+    renderDailyGame(state.daily);
+    renderDailyBenchmark();
+  } else {
+    renderGames();
+    renderCoverage();
+    renderBacktest();
+  }
   renderHistory();
 }
 
@@ -388,9 +406,9 @@ function updateStrategyNote() {
   const mode = $("#generationMode").value;
   const budget = Number($("#dailyBudget").value || 0);
   const count = mode === "daily" ? 1 : Number($("#gameCount").value || 1);
-  const estimated = count * estimatedGameCost(Number($("#gameSize").value || 15));
+  const estimated = count * estimatedGameCost(mode === "daily" ? 15 : Number($("#gameSize").value || 15));
   const notes = {
-    daily: "Modo 1 jogo: prioriza uma combinacao forte, equilibrada e diferente do seu historico.",
+    daily: "Uma combinação de 15 dezenas por concurso. Registre o jogo que realmente fez para personalizar a próxima sugestão.",
     diversified: "Modo diversificar: reduz repeticao entre jogos para cobrir mais combinacoes possiveis.",
     closure20: "Modo base 20: monta jogos amarrados dentro de uma base forte de 20 dezenas.",
   };
@@ -435,6 +453,59 @@ function renderPairs() {
       <small>${pair.count} vezes</small>
     </div>
   `).join("");
+}
+
+const formatPercent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
+const formatSmallPercent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 4 });
+const formatPoints = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+
+function renderDailyGame(game) {
+  const personal = game.previousCount
+    ? `Usa seus ${game.previousCount} registros mais recentes. ${game.playedRepeat} dezenas em comum com seu último jogo.`
+    : "O diário ainda não tem jogos anteriores para personalizar a sugestão.";
+  $("#games").innerHTML = `
+    <article class="game">
+      <div class="game-title">${game.registered ? "Jogo registrado" : "15 dezenas sugeridas"}</div>
+      <div class="numbers">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
+      <div class="game-explain">
+        <p class="helper">${game.drawnRepeat} dezenas do último sorteio. No histórico, dois sorteios consecutivos repetem ${formatPoints.format(game.averageRepeat)} dezenas em média.</p>
+        <p class="helper">${personal}</p>
+      </div>
+    </article>
+  `;
+  $("#dailyFrequencies").innerHTML = `
+    <p class="helper">O cálculo suaviza oscilações das janelas recentes, compara pares com a frequência das dezenas e reduz a repetição dos seus jogos anteriores.</p>
+    <table class="comparison-table">
+      <thead><tr><th scope="col">Dezena</th><th scope="col">Últimos ${game.shortDraws}</th><th scope="col">Últimos ${game.recentDraws}</th><th scope="col">Histórico (${game.historicalDraws})</th></tr></thead>
+      <tbody>${game.frequencies.map(({ number, short, recent, full }) => `
+        <tr><th scope="row">${formatNumber(number)}</th><td>${formatPercent.format(short)}</td>
+          <td>${formatPercent.format(recent)}</td><td>${formatPercent.format(full)}</td></tr>
+      `).join("")}</tbody>
+    </table>
+  `;
+}
+
+function renderDailyBenchmark() {
+  if (!state.daily || !$("#dailyBenchmark").open || state.benchmarkBase === state.data) return;
+  const test = testDailyGame(state.analysis.sorted);
+  state.benchmarkBase = state.data;
+  if (!test) {
+    $("#dailyBenchmarkResult").textContent = "A base ainda não tem concursos suficientes para a simulação.";
+    return;
+  }
+  $("#dailyBenchmarkResult").innerHTML = `
+    <p class="helper">${test.sampleSize} concursos, do ${test.firstContest} ao ${test.lastContest}. Cada jogo foi escolhido usando só resultados anteriores e os jogos já simulados até aquele ponto.</p>
+    <p class="helper">Média simulada de <strong>${formatPoints.format(test.mean)}</strong> acertos. Para jogos de 15 dezenas em sorteios justos, a média esperada é ${formatPoints.format(test.fairMean)} e a faixa aproximada de 95% para uma amostra deste tamanho vai de ${formatPoints.format(test.lowerFairMean)} a ${formatPoints.format(test.upperFairMean)}.</p>
+    <table class="comparison-table">
+      <thead><tr><th scope="col">Acertos</th><th scope="col">Simulação</th><th scope="col">Referência aleatória</th></tr></thead>
+      <tbody>${test.rows.map(({ score, observed, expected }) => `
+        <tr><th scope="row">${score === 15 ? "15" : `${score}+`}</th>
+        <td>${observed}/${test.sampleSize} (${formatPercent.format(observed / test.sampleSize)})</td>
+        <td>${score === 15 ? "1 em 3.268.760" : (score === 14 ? formatSmallPercent : formatPercent).format(expected)}</td></tr>
+      `).join("")}</tbody>
+    </table>
+    <p class="helper">A simulação mede o desempenho passado. Use a referência aleatória para interpretar as diferenças observadas.</p>
+  `;
 }
 
 function renderGames() {
@@ -571,53 +642,111 @@ function renderStrategyBacktest() {
   `;
 }
 
-function savePlayedGames() {
-  if (!state.games.length) return;
-  const entries = getPlayedGames();
-  const existing = new Set(entries.map((entry) => entry.key));
-  const targetContest = (state.analysis.sorted[0]?.contest || 0) + 1;
-  const now = new Date().toISOString();
-  let added = 0;
+function nextContest() {
+  return state.analysis.sorted[0].contest + 1;
+}
 
-  state.games.forEach((game) => {
-    const key = gameKey(game.numbers);
-    if (existing.has(key)) return;
-    entries.unshift({
-      key,
-      numbers: game.numbers,
-      score: Number(game.score.toFixed(2)),
-      mode: $("#generationMode").value,
-      strategy: $("#strategy").value,
-      cost: estimatedGameCost(game.numbers.length),
-      targetContest,
-      createdAt: now,
-    });
-    existing.add(key);
-    added += 1;
-  });
+function diaryEntry(numbers, targetContest, mode, strategy, score = null) {
+  return {
+    key: gameKey(numbers), numbers, targetContest, mode, strategy, score,
+    cost: estimatedGameCost(numbers.length), createdAt: new Date().toISOString(),
+  };
+}
 
+function renderDiaryChange() {
+  if (!state.analysis) return;
+  if (state.daily) generateGames();
+  else renderHistory();
+}
+
+function storeDiaryEntries(additions) {
+  const current = getPlayedGames();
+  const entries = mergeDiary(current, additions);
+  const added = entries.length - current.length;
+  if (!added) return 0;
   setPlayedGames(entries);
-  renderHistory();
-  showToast(added ? `${added} jogo(s) registrado(s).` : "Esses jogos ja estavam registrados.");
+  renderDiaryChange();
+  return added;
+}
+
+function savePlayedGames() {
+  if (!state.games.length || state.daily?.registered) return;
+  const mode = $("#generationMode").value;
+  const strategy = state.daily ? "daily" : $("#strategy").value;
+  const contest = nextContest();
+  const entries = state.games.map(({ numbers, score }) => diaryEntry(numbers, contest, mode, strategy, score));
+  try {
+    const added = storeDiaryEntries(entries);
+    showToast(added ? `Jogo(s) registrado(s) para o concurso ${contest}.` : "Jogo já registrado neste concurso.");
+  } catch {
+    showToast("Não foi possível salvar o jogo neste navegador.");
+  }
+}
+
+function saveManualGame(event) {
+  event.preventDefault();
+  if (!state.analysis) {
+    showToast("Aguarde o carregamento dos concursos.");
+    return;
+  }
+  const contest = $("#manualContest").valueAsNumber;
+  const digits = $("#manualNumbers").value.trim().split(/[\s,;-]+/);
+  const numbers = digits.map(Number).sort((a, b) => a - b);
+  if (!Number.isSafeInteger(contest) || contest < 1 || contest > nextContest()) {
+    showToast(`Informe um concurso entre 1 e ${nextContest()}.`);
+    return;
+  }
+  if (!digits.every((digit) => /^\d{1,2}$/.test(digit)) || !validNumbers(numbers, 15, 15)) {
+    showToast("Informe 15 dezenas diferentes entre 01 e 25.");
+    return;
+  }
+  try {
+    const added = storeDiaryEntries([diaryEntry(numbers, contest, "manual", "manual")]);
+    $("#manualNumbers").value = "";
+    showToast(added ? `Jogo registrado para o concurso ${contest}.` : "Jogo já registrado neste concurso.");
+  } catch {
+    showToast("Não foi possível salvar o jogo neste navegador.");
+  }
+}
+
+function exportDiary() {
+  downloadFile(encodeDiary(getPlayedGames()), "application/json", "diario-lotofacil.json");
+}
+
+async function importDiary(event) {
+  const input = event.currentTarget;
+  const [file] = input.files;
+  if (!file) return;
+  try {
+    const entries = decodeDiary(await file.text());
+    const added = storeDiaryEntries(entries);
+    showToast(added ? `${added} jogo(s) importado(s).` : "O backup não trouxe jogos novos.");
+  } catch (error) {
+    showToast(error.name === "QuotaExceededError"
+      ? "Sem espaço para importar o diário neste navegador."
+      : error instanceof SyntaxError ? "Arquivo de backup inválido." : error.message);
+  } finally {
+    input.value = "";
+  }
 }
 
 function renderHistory() {
   const entries = getPlayedGames();
-  renderHistoryStats(entries);
+  $("#showMoreHistory").hidden = entries.length <= state.historyLimit;
+  const byContest = Object.fromEntries(state.analysis.sorted.map((draw) => [draw.contest, draw]));
+  renderHistoryStats(entries, byContest);
   if (!entries.length) {
     $("#history").innerHTML = `<div class="empty-state">Nenhum jogo registrado ainda.</div>`;
     return;
   }
 
-  const byContest = Object.fromEntries(state.analysis.sorted.map((draw) => [draw.contest, draw]));
-  $("#history").innerHTML = entries.slice(0, 12).map((entry) => {
-    const draw = byContest[entry.targetContest];
-    const hits = draw ? intersectionCount(entry.numbers, draw.numbers) : null;
+  $("#history").innerHTML = entries.slice(0, state.historyLimit).map((entry) => {
+    const hits = entryHits(entry, byContest);
     return `
       <article class="history-item">
         <div>
           <strong>Concurso ${entry.targetContest}</strong>
-          <small>${formatUpdatedAt(entry.createdAt)} | ${entry.mode}</small>
+          <small>${formatUpdatedAt(entry.createdAt)} · ${diaryModeLabel(entry.mode)}</small>
         </div>
         <div class="numbers">${entry.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
         <div class="history-result">${hits === null ? "aguardando resultado" : `${hits} acertos`}</div>
@@ -631,38 +760,30 @@ function entryHits(entry, byContest) {
   return draw ? intersectionCount(entry.numbers, draw.numbers) : null;
 }
 
-function renderHistoryStats(entries) {
+function diaryModeLabel(mode) {
+  return {
+    daily: "Jogo do dia",
+    manual: "Registro manual",
+    diversified: "Diversificar jogos",
+    closure20: "Base 20",
+  }[mode] ?? "Jogo registrado";
+}
+
+function renderHistoryStats(entries, byContest) {
   const container = $("#historyStats");
   if (!entries.length) {
     container.innerHTML = "";
     return;
   }
 
-  const byContest = Object.fromEntries(state.analysis.sorted.map((draw) => [draw.contest, draw]));
   const resolved = entries
     .map((entry) => ({ ...entry, hits: entryHits(entry, byContest) }))
     .filter((entry) => entry.hits !== null);
   const pending = entries.length - resolved.length;
-  const totalCost = entries.reduce((total, entry) => total + (entry.cost || estimatedGameCost(entry.numbers.length)), 0);
+  const totalCost = entries.reduce((total, entry) => total + (entry.cost ?? estimatedGameCost(entry.numbers.length)), 0);
   const bestHits = resolved.length ? Math.max(...resolved.map((entry) => entry.hits)) : "-";
   const avgHits = resolved.length ? average(resolved.map((entry) => entry.hits)).toFixed(2) : "-";
-  const strategyScores = {};
-
-  resolved.forEach((entry) => {
-    const key = entry.strategy || "sem perfil";
-    strategyScores[key] ||= { total: 0, count: 0, best: 0 };
-    strategyScores[key].total += entry.hits;
-    strategyScores[key].count += 1;
-    strategyScores[key].best = Math.max(strategyScores[key].best, entry.hits);
-  });
-
-  const bestStrategy = Object.entries(strategyScores)
-    .map(([strategy, stats]) => ({
-      strategy,
-      avg: stats.total / stats.count,
-      best: stats.best,
-    }))
-    .sort((a, b) => b.avg - a.avg)[0];
+  const prizeRange = resolved.filter((entry) => entry.hits >= 11).length;
 
   container.innerHTML = `
     <div><strong>${entries.length}</strong><small>jogos registrados</small></div>
@@ -670,7 +791,7 @@ function renderHistoryStats(entries) {
     <div><strong>${bestHits}</strong><small>melhor acerto</small></div>
     <div><strong>${avgHits}</strong><small>media de acertos</small></div>
     <div><strong>${pending}</strong><small>aguardando resultado</small></div>
-    <div><strong>${bestStrategy ? strategyLabel(bestStrategy.strategy) : "-"}</strong><small>melhor perfil pessoal</small></div>
+    <div><strong>${prizeRange}</strong><small>jogos com 11 ou mais acertos</small></div>
   `;
 }
 
@@ -684,13 +805,19 @@ function strategyLabel(strategy) {
 }
 
 function clearHistory() {
-  if (!confirm("Limpar o diario local de jogos?")) return;
-  setPlayedGames([]);
-  renderHistory();
-  showToast("Diario limpo.");
+  if (!confirm("Apagar o diário deste navegador? Salve um backup antes se quiser recuperá-lo depois.")) return;
+  try {
+    setPlayedGames([]);
+    state.historyLimit = 12;
+    renderDiaryChange();
+    showToast("Diário limpo.");
+  } catch {
+    showToast("Não foi possível limpar o diário.");
+  }
 }
 
 function downloadCsv() {
+  if (!state.analysis) return;
   const header = "numero,frequencia,percentual,frequencia_recente,atraso,pontuacao";
   const rows = state.analysis.ranking.map((item) => [
     formatNumber(item.number),
@@ -700,11 +827,15 @@ function downloadCsv() {
     item.delay,
     item.score.toFixed(4),
   ].join(","));
-  const blob = new Blob([[header, ...rows].join("\n")], { type: "text/csv;charset=utf-8" });
+  downloadFile([header, ...rows].join("\n"), "text/csv;charset=utf-8", "ranking-lotofacil.csv");
+}
+
+function downloadFile(content, type, filename) {
+  const blob = new Blob([content], { type });
   const url = URL.createObjectURL(blob);
   const link = document.createElement("a");
   link.href = url;
-  link.download = "ranking-lotofacil.csv";
+  link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
 }
@@ -820,7 +951,15 @@ function setupPwa() {
 }
 
 function refreshAnalysis() {
+  if (!state.data) return;
   state.analysis = analyze(state.data.results, Number($("#recentWindow").value));
+  const contest = nextContest();
+  const manualContest = $("#manualContest");
+  if (!manualContest.value || (manualContest.valueAsNumber === state.manualDefaultContest && !$("#manualNumbers").value)) {
+    manualContest.value = contest;
+  }
+  manualContest.max = contest;
+  state.manualDefaultContest = contest;
   renderSummary();
   renderRanking();
   renderPairs();
@@ -845,6 +984,15 @@ $("#dailyBudget").addEventListener("change", updateStrategyNote);
 $("#downloadCsv").addEventListener("click", downloadCsv);
 $("#copyGames").addEventListener("click", copyGames);
 $("#savePlayed").addEventListener("click", savePlayedGames);
+$("#manualGame").addEventListener("submit", saveManualGame);
+$("#dailyBenchmark").addEventListener("toggle", renderDailyBenchmark);
+$("#exportDiary").addEventListener("click", exportDiary);
+$("#importDiary").addEventListener("click", () => $("#diaryFile").click());
+$("#diaryFile").addEventListener("change", importDiary);
+$("#showMoreHistory").addEventListener("click", () => {
+  state.historyLimit += 12;
+  renderHistory();
+});
 $("#clearHistory").addEventListener("click", clearHistory);
 $("#forceUpdate").addEventListener("click", forceUpdate);
 installButtons().forEach((button) => button.addEventListener("click", installApp));

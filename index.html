@@ -11,7 +11,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png">
-    <link rel="stylesheet" href="styles.css">
+    <link rel="stylesheet" href="styles.css?v=9">
   </head>
   <body>
     <header class="app-header">
@@ -29,24 +29,18 @@
     </header>
 
     <main class="layout">
-      <section class="mobile-hero">
-        <p class="kicker">Uso rapido</p>
-        <h2>Gere jogos equilibrados e veja o que cada numero esta fazendo.</h2>
-        <button class="install-button full" id="installAppMobile" hidden>Instalar no celular</button>
-      </section>
-
-      <section class="panel controls">
+      <section class="panel controls daily-mode" id="gameControls">
         <h2>Configurar jogos</h2>
         <div class="control-grid">
-          <label>
+          <label class="multiple-mode">
             Quantidade
             <input id="gameCount" type="number" min="1" max="100" value="4">
           </label>
           <label>
-            Janela recente
+            Janela do ranking
             <input id="recentWindow" type="number" min="10" max="500" value="120">
           </label>
-          <label>
+          <label class="multiple-mode">
             Numeros
             <select id="gameSize">
               <option value="15">15 numeros</option>
@@ -57,7 +51,7 @@
               <option value="20">20 numeros</option>
             </select>
           </label>
-          <label>
+          <label class="multiple-mode">
             Perfil
             <select id="strategy">
               <option value="balanced">Equilibrado</option>
@@ -78,8 +72,8 @@
             Limite diario
             <input id="dailyBudget" type="number" min="0" step="0.50" value="3.50">
           </label>
-          <label>
-            Repetir ultimo
+          <label class="multiple-mode">
+            Repetir último
             <select id="lastRepeatRange">
               <option value="auto">Automatico</option>
               <option value="6-8">6 a 8</option>
@@ -89,8 +83,8 @@
             </select>
           </label>
         </div>
-        <button id="generate">Gerar jogos</button>
-        <p class="note" id="strategyNote">A recomendacao pratica para quem joga pouco e gerar 1 jogo forte, equilibrado e diferente dos jogos ja registrados.</p>
+        <button id="generate" hidden>Gerar jogos</button>
+        <p class="note" id="strategyNote">Uma combinação de 15 dezenas por concurso.</p>
       </section>
 
       <section class="panel summary">
@@ -113,34 +107,25 @@
         </div>
       </section>
 
-      <section class="panel wide">
+      <section class="panel wide recommendation">
         <div class="section-heading">
           <div>
-            <p class="kicker">Sugestao principal</p>
-            <h2>Jogos sugeridos</h2>
+            <h2 id="gameHeading">Jogo do dia</h2>
+            <p class="helper" id="gameContest" aria-live="polite">Carregando o próximo concurso…</p>
           </div>
           <div class="button-row">
-            <button class="ghost action-button" id="savePlayed">Registrar</button>
+            <button class="ghost action-button" id="savePlayed" disabled>Registrar jogo</button>
             <button class="ghost action-button" id="copyGames">Copiar</button>
           </div>
         </div>
-        <p class="helper">Os jogos sao ranqueados por equilibrio: frequencia, atraso, soma, pares e distribuicao no volante.</p>
         <div id="coverage" class="coverage"></div>
         <div id="games" class="games"></div>
-      </section>
-
-      <section class="panel advice">
-        <div class="section-heading">
-          <div>
-            <p class="kicker">Estrategia</p>
-            <h2>4 jogos por dia</h2>
-          </div>
-        </div>
-        <div class="advice-body">
-          <strong>Matematicamente, tanto faz trocar ou manter os mesmos 4 jogos.</strong>
-          <p>Cada sorteio e independente. Se voce joga 4 combinacoes diferentes de 15 numeros, sua chance para 15 acertos em um concurso e de 4 em 3.268.760, ou cerca de 1 em 817.190.</p>
-          <p>Na pratica, eu recomendo gerar 4 jogos novos todos os dias, mas sem achar que isso aumenta a probabilidade pura. A vantagem e diversificar combinacoes, usar a base atualizada e evitar ficar preso em um jogo ruim de distribuicao.</p>
-        </div>
+        <p class="helper" id="fairChance">Em um sorteio justo, toda combinação de 15 dezenas tem a mesma chance de fazer 15 pontos, 1 em 3.268.760.</p>
+        <details class="panel-details" id="dailyDetails" hidden>
+          <summary>Ver a comparação das dezenas</summary>
+          <div id="dailyFrequencies"></div>
+        </details>
+        <button class="install-button full mobile-install" id="installAppMobile" hidden>Instalar no celular</button>
       </section>
 
       <section class="panel wide">
@@ -169,11 +154,14 @@
       <section class="panel wide">
         <div class="section-heading">
           <div>
-            <p class="kicker">Teste historico</p>
-            <h2>Backtest</h2>
+            <h2>Desempenho em concursos passados</h2>
           </div>
         </div>
-        <p class="helper">Compara os jogos sugeridos contra os ultimos concursos. Serve para avaliar a estrategia, nao para prever o proximo resultado.</p>
+        <p class="helper" id="legacyBacktestNote" hidden>Compara os jogos sugeridos com os últimos concursos.</p>
+        <details class="panel-details" id="dailyBenchmark">
+          <summary>Comparar o jogo do dia com a referência aleatória</summary>
+          <div id="dailyBenchmarkResult"></div>
+        </details>
         <div id="backtest" class="backtest"></div>
         <div id="strategyBacktest" class="strategy-backtest"></div>
       </section>
@@ -182,17 +170,35 @@
         <div class="section-heading">
           <div>
             <p class="kicker">Seu uso</p>
-            <h2>Diario de jogos</h2>
+            <h2>Diário de jogos</h2>
           </div>
-          <button class="ghost action-button" id="clearHistory">Limpar</button>
+          <button class="ghost action-button" id="exportDiary">Salvar backup</button>
         </div>
-        <p class="helper">Registre o que voce jogou. Quando o concurso estiver na base, o sistema confere os acertos automaticamente.</p>
+        <p class="helper">O diário fica neste navegador. Os acertos aparecem quando o resultado do concurso entra na base.</p>
+        <details class="panel-details">
+          <summary>Registrar dezenas que joguei</summary>
+          <form id="manualGame">
+            <label>Concurso <input id="manualContest" type="number" min="1" step="1" required></label>
+            <label>15 dezenas <input id="manualNumbers" type="text" placeholder="01 02 03 …" autocomplete="off" required></label>
+            <button type="submit">Salvar no diário</button>
+          </form>
+        </details>
+        <details class="panel-details">
+          <summary>Gerenciar diário</summary>
+          <p class="helper">Use o backup para recuperar seus jogos neste navegador ou transferi-los para outro aparelho.</p>
+          <div class="diary-actions">
+            <button class="ghost" id="importDiary">Importar backup</button>
+            <button class="ghost" id="clearHistory">Limpar diário</button>
+            <input type="file" id="diaryFile" accept=".json,application/json" hidden>
+          </div>
+        </details>
         <div id="historyStats" class="history-stats"></div>
         <div id="history" class="history"></div>
+        <button class="ghost" id="showMoreHistory" hidden>Mostrar mais jogos</button>
       </section>
     </main>
 
     <div class="toast" id="toast" hidden></div>
-    <script src="app.js"></script>
+    <script type="module" src="app.js?v=9"></script>
   </body>
 </html>
