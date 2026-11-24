@@ -17,7 +17,24 @@ const state = {
 };
 
 const $ = (selector) => document.querySelector(selector);
-const installButtons = () => [$("#installApp"), $("#installAppMobile")].filter(Boolean);
+const screens = [...document.querySelectorAll("[data-screen]")];
+const tabs = [...document.querySelectorAll("[data-tab]")];
+
+function renderScreen(focusHeading = false) {
+  const target = window.location.hash.slice(1);
+  if (target === "conteudo") return;
+  const screen = screens.find(({ id }) => id === target) ?? screens[0];
+  for (const item of screens) item.hidden = item !== screen;
+  for (const tab of tabs) {
+    if (tab.dataset.tab === screen.id) tab.setAttribute("aria-current", "page");
+    else tab.removeAttribute("aria-current");
+  }
+  if (screen.id === "estatisticas") renderDailyBenchmark();
+  if (focusHeading) {
+    window.scrollTo(0, 0);
+    screen.querySelector("h1").focus({ preventScroll: true });
+  }
+}
 
 function formatNumber(value) {
   return String(value).padStart(2, "0");
@@ -379,14 +396,17 @@ function finishGeneration() {
   const isDaily = Boolean(state.daily);
   updateStrategyNote();
   $("#gameControls").classList.toggle("daily-mode", isDaily);
-  $("#generate").hidden = isDaily;
+  $("#generate").textContent = isDaily ? "Ver jogo do dia" : "Gerar e ver jogos";
   $("#gameHeading").textContent = isDaily ? "Jogo do dia" : "Jogos sugeridos";
   $("#gameContest").textContent = `Concurso ${nextContest()}`;
   $("#savePlayed").disabled = !state.games.length || Boolean(state.daily?.registered);
   $("#savePlayed").textContent = state.daily?.registered ? "Jogo registrado" : "Registrar jogo";
+  $("#copyGames").disabled = !state.games.length;
+  $("#copyGames").textContent = isDaily ? "Copiar dezenas" : "Copiar jogos";
+  $("#gameInsights").hidden = !isDaily;
+  $("#jogo").classList.toggle("multiple-games", !isDaily);
   $("#dailyDetails").hidden = !isDaily;
   $("#coverage").hidden = isDaily;
-  $("#fairChance").hidden = !isDaily;
   $("#legacyBacktestNote").hidden = isDaily;
   $("#backtest").hidden = isDaily;
   $("#strategyBacktest").hidden = isDaily;
@@ -407,15 +427,8 @@ function updateStrategyNote() {
   const budget = Number($("#dailyBudget").value || 0);
   const count = mode === "daily" ? 1 : Number($("#gameCount").value || 1);
   const estimated = count * estimatedGameCost(mode === "daily" ? 15 : Number($("#gameSize").value || 15));
-  const notes = {
-    daily: "Uma combinação de 15 dezenas por concurso. Registre o jogo que realmente fez para personalizar a próxima sugestão.",
-    diversified: "Modo diversificar: reduz repeticao entre jogos para cobrir mais combinacoes possiveis.",
-    closure20: "Modo base 20: monta jogos amarrados dentro de uma base forte de 20 dezenas.",
-  };
-  const budgetNote = budget > 0 && estimated > budget
-    ? ` Custo estimado: R$ ${estimated.toFixed(2).replace(".", ",")}, acima do limite informado.`
-    : ` Custo estimado: R$ ${estimated.toFixed(2).replace(".", ",")}.`;
-  $("#strategyNote").textContent = `${notes[mode]}${budgetNote}`;
+  const budgetNote = budget > 0 && estimated > budget ? " · acima do limite diário" : "";
+  $("#strategyNote").textContent = `Custo estimado de R$ ${estimated.toFixed(2).replace(".", ",")}${budgetNote}`;
 }
 
 function renderSummary() {
@@ -424,25 +437,20 @@ function renderSummary() {
   $("#metricContests").textContent = data.total_contests || results.length;
   $("#metricLatest").textContent = data.latest_contest || results[0].contest;
   $("#metricAvgSum").textContent = Math.round(state.analysis.avgSum);
-  $("#metricRange").innerHTML = `<b>${results.at(-1).date}</b><em>ate</em><b>${results[0].date}</b>`;
-  $("#metricUpdated").textContent = `Atualizado em: ${formatUpdatedAt(data.updated_at)}`;
-  $("#updateMode").textContent = isLocalServer()
-    ? "Neste modo, o botao Atualizar baixa os resultados agora."
-    : "Online: use npm run sync no computador para atualizar e enviar ao GitHub.";
-  $("#status").textContent = `Base: ${results.length} concursos. Atualizado: ${formatUpdatedAt(data.updated_at)}`;
+  $("#metricRange").textContent = `${results.at(-1).date} a ${results[0].date}`;
+  $("#metricUpdated").textContent = `Última atualização da base em ${formatUpdatedAt(data.updated_at)}`;
+  $("#status").textContent = `Base até ${results[0].contest}`;
 }
 
 function renderRanking() {
+  $("#rankingWindow").textContent = `Últimos ${state.analysis.recent.length}`;
   $("#numberRanking").innerHTML = state.analysis.ranking.map((item) => `
-    <article class="number-card">
-      <div class="number-card-header">
-        <span class="ball">${formatNumber(item.number)}</span>
-        <strong>${(item.percentage * 100).toFixed(1)}%</strong>
-      </div>
-      <div class="stat-row"><span>Historico</span><b>${item.frequency} vezes</b></div>
-      <div class="stat-row"><span>Janela recente</span><b>${item.recentFrequency} vezes</b></div>
-      <div class="stat-row"><span>Atraso atual</span><b>${item.delay} concursos</b></div>
-    </article>
+    <tr>
+      <th scope="row"><span class="ball">${formatNumber(item.number)}</span></th>
+      <td>${formatPercent.format(item.percentage)}</td>
+      <td>${item.recentFrequency}</td>
+      <td>${item.delay}</td>
+    </tr>
   `).join("");
 }
 
@@ -460,21 +468,22 @@ const formatSmallPercent = new Intl.NumberFormat("pt-BR", { style: "percent", ma
 const formatPoints = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 
 function renderDailyGame(game) {
-  const personal = game.previousCount
-    ? `Usa seus ${game.previousCount} registros mais recentes. ${game.playedRepeat} dezenas em comum com seu último jogo.`
-    : "O diário ainda não tem jogos anteriores para personalizar a sugestão.";
   $("#games").innerHTML = `
-    <article class="game">
-      <div class="game-title">${game.registered ? "Jogo registrado" : "15 dezenas sugeridas"}</div>
-      <div class="numbers">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
-      <div class="game-explain">
-        <p class="helper">${game.drawnRepeat} dezenas do último sorteio. No histórico, dois sorteios consecutivos repetem ${formatPoints.format(game.averageRepeat)} dezenas em média.</p>
-        <p class="helper">${personal}</p>
-      </div>
-    </article>
+    <div class="daily-numbers" aria-label="15 dezenas">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
+  `;
+  $("#insightsHeading").textContent = game.registered ? "Leitura do jogo registrado" : "Leitura da sugestão";
+  $("#dailyInsights").innerHTML = `
+    <dl class="insights-list">
+      <div><dt>Em comum com o último sorteio</dt><dd>${game.drawnRepeat} dezenas</dd></div>
+      <div><dt>Média histórica entre sorteios consecutivos</dt><dd>${formatPoints.format(game.averageRepeat)} dezenas</dd></div>
+      ${game.previousCount
+        ? `<div><dt>Em comum com seu último jogo</dt><dd>${game.playedRepeat} dezenas</dd></div>`
+        : ""}
+    </dl>
+    ${game.previousCount ? "" : '<p class="helper">Registre o jogo que fizer para personalizar as próximas sugestões.</p>'}
   `;
   $("#dailyFrequencies").innerHTML = `
-    <p class="helper">O cálculo suaviza oscilações das janelas recentes, compara pares com a frequência das dezenas e reduz a repetição dos seus jogos anteriores.</p>
+    <p class="helper">Compare a frequência das 15 dezenas nos sorteios recentes e no histórico.</p>
     <table class="comparison-table">
       <thead><tr><th scope="col">Dezena</th><th scope="col">Últimos ${game.shortDraws}</th><th scope="col">Últimos ${game.recentDraws}</th><th scope="col">Histórico (${game.historicalDraws})</th></tr></thead>
       <tbody>${game.frequencies.map(({ number, short, recent, full }) => `
@@ -486,7 +495,7 @@ function renderDailyGame(game) {
 }
 
 function renderDailyBenchmark() {
-  if (!state.daily || !$("#dailyBenchmark").open || state.benchmarkBase === state.data) return;
+  if (!state.daily || $("#estatisticas").hidden || !$("#dailyBenchmark").open || state.benchmarkBase === state.data) return;
   const test = testDailyGame(state.analysis.sorted);
   state.benchmarkBase = state.data;
   if (!test) {
@@ -494,8 +503,8 @@ function renderDailyBenchmark() {
     return;
   }
   $("#dailyBenchmarkResult").innerHTML = `
-    <p class="helper">${test.sampleSize} concursos, do ${test.firstContest} ao ${test.lastContest}. Cada jogo foi escolhido usando só resultados anteriores e os jogos já simulados até aquele ponto.</p>
-    <p class="helper">Média simulada de <strong>${formatPoints.format(test.mean)}</strong> acertos. Para jogos de 15 dezenas em sorteios justos, a média esperada é ${formatPoints.format(test.fairMean)} e a faixa aproximada de 95% para uma amostra deste tamanho vai de ${formatPoints.format(test.lowerFairMean)} a ${formatPoints.format(test.upperFairMean)}.</p>
+    <p class="helper">${test.sampleSize} concursos, do ${test.firstContest} ao ${test.lastContest}. Cada sugestão considerou apenas os dados disponíveis antes do sorteio.</p>
+    <p class="helper"><strong>${formatPoints.format(test.mean)}</strong> acertos em média na simulação. Para uma amostra desse tamanho, o acaso tem média esperada de ${formatPoints.format(test.fairMean)} e faixa de 95% de ${formatPoints.format(test.lowerFairMean)} a ${formatPoints.format(test.upperFairMean)}.</p>
     <table class="comparison-table">
       <thead><tr><th scope="col">Acertos</th><th scope="col">Simulação</th><th scope="col">Referência aleatória</th></tr></thead>
       <tbody>${test.rows.map(({ score, observed, expected }) => `
@@ -504,34 +513,28 @@ function renderDailyBenchmark() {
         <td>${score === 15 ? "1 em 3.268.760" : (score === 14 ? formatSmallPercent : formatPercent).format(expected)}</td></tr>
       `).join("")}</tbody>
     </table>
-    <p class="helper">A simulação mede o desempenho passado. Use a referência aleatória para interpretar as diferenças observadas.</p>
   `;
 }
 
 function renderGames() {
-  $("#games").innerHTML = state.games.map((game) => `
+  $("#games").innerHTML = state.games.map((game) => {
+    const issues = gameIssues(game.numbers, state.analysis);
+    return `
     <article class="game">
       <div class="game-title">
         Jogo ${game.index}
-        <span class="game-meta">${game.numbers.length} numeros</span>
+        <span class="game-meta">${game.numbers.length} dezenas</span>
       </div>
       <div class="numbers">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
-      <div class="game-score">
-        <strong>Nota estatistica: ${game.score.toFixed(2)}</strong>
-        <span>${describeGame(game.numbers)}</span>
-        <small>${gameIssues(game.numbers, state.analysis).length ? `Alertas: ${gameIssues(game.numbers, state.analysis).join(", ")}` : "Sem alertas do filtro anti-jogo-fraco"}</small>
-      </div>
-      <div class="game-explain">
-        <strong>Por que este jogo?</strong>
+      <details class="game-explain">
+        <summary>Ver critérios do jogo</summary>
+        <p>Pontuação do critério de seleção ${formatPoints.format(game.score)}</p>
         <ul>${explainGame(game.numbers, state.analysis).map((item) => `<li>${item}</li>`).join("")}</ul>
-      </div>
+        ${issues.length ? `<p>Alertas: ${issues.join(", ")}</p>` : ""}
+      </details>
     </article>
-  `).join("");
-}
-
-function describeGame(numbers) {
-  const profile = gameProfile(numbers);
-  return `Soma ${profile.sum} | ${profile.odd} impares/${profile.even} pares | ${profile.low} baixos/${profile.high} altos`;
+    `;
+  }).join("");
 }
 
 function renderCoverage() {
@@ -548,8 +551,8 @@ function renderCoverage() {
 
   $("#coverage").innerHTML = `
     <div><strong>${allNumbers.size}</strong><small>dezenas cobertas</small></div>
-    <div><strong>${maxOverlap}</strong><small>maior repeticao entre jogos</small></div>
-    <div><strong>${avgOverlap.toFixed(1)}</strong><small>repeticao media</small></div>
+    <div><strong>${maxOverlap}</strong><small>maior repetição entre jogos</small></div>
+    <div><strong>${formatPoints.format(avgOverlap)}</strong><small>repetição média</small></div>
     ${base ? `<div><strong>${base.map(formatNumber).join(" ")}</strong><small>base 20 usada</small></div>` : ""}
   `;
 }
@@ -569,7 +572,7 @@ function renderBacktest() {
   });
 
   $("#backtest").innerHTML = `
-    <div><strong>${best}</strong><small>maior acerto nos ultimos ${sample.length}</small></div>
+    <div><strong>${best}</strong><small>maior acerto nos últimos ${sample.length}</small></div>
     <div><strong>${hits[11] || 0}</strong><small>resultados com 11 acertos</small></div>
     <div><strong>${hits[12] || 0}</strong><small>resultados com 12 acertos</small></div>
     <div><strong>${hits[13] || 0}</strong><small>resultados com 13 acertos</small></div>
@@ -629,12 +632,12 @@ function renderStrategyBacktest() {
   }).sort((a, b) => b.avg - a.avg);
 
   $("#strategyBacktest").innerHTML = `
-    <h3>Ranking de estrategias</h3>
+    <h3>Ranking de estratégias</h3>
     <div class="strategy-table">
       ${rows.map((row) => `
         <div>
           <strong>${row.label}</strong>
-          <span>media ${row.avg.toFixed(2)} | melhor ${row.best}</span>
+          <span>Média de ${formatPoints.format(row.avg)} · melhor ${row.best}</span>
           <small>11+: ${row.buckets[11] + row.buckets[12] + row.buckets[13] + row.buckets[14] + row.buckets[15]} | 13+: ${row.buckets[13] + row.buckets[14] + row.buckets[15]} | 15: ${row.buckets[15]}</small>
         </div>
       `).join("")}
@@ -782,14 +785,14 @@ function renderHistoryStats(entries, byContest) {
   const pending = entries.length - resolved.length;
   const totalCost = entries.reduce((total, entry) => total + (entry.cost ?? estimatedGameCost(entry.numbers.length)), 0);
   const bestHits = resolved.length ? Math.max(...resolved.map((entry) => entry.hits)) : "-";
-  const avgHits = resolved.length ? average(resolved.map((entry) => entry.hits)).toFixed(2) : "-";
+  const avgHits = resolved.length ? formatPoints.format(average(resolved.map((entry) => entry.hits))) : "–";
   const prizeRange = resolved.filter((entry) => entry.hits >= 11).length;
 
   container.innerHTML = `
     <div><strong>${entries.length}</strong><small>jogos registrados</small></div>
     <div><strong>R$ ${totalCost.toFixed(2).replace(".", ",")}</strong><small>gasto estimado</small></div>
     <div><strong>${bestHits}</strong><small>melhor acerto</small></div>
-    <div><strong>${avgHits}</strong><small>media de acertos</small></div>
+    <div><strong>${avgHits}</strong><small>média de acertos</small></div>
     <div><strong>${pending}</strong><small>aguardando resultado</small></div>
     <div><strong>${prizeRange}</strong><small>jogos com 11 ou mais acertos</small></div>
   `;
@@ -842,19 +845,19 @@ function downloadFile(content, type, filename) {
 
 async function copyGames() {
   const text = state.games
-    .map((game) => `Jogo ${game.index}: ${game.numbers.map(formatNumber).join(" ")}`)
+    .map((game) => `${state.daily ? "" : `Jogo ${game.index}: `}${game.numbers.map(formatNumber).join(" ")}`)
     .join("\n");
-  await navigator.clipboard.writeText(text);
-  $("#copyGames").textContent = "Copiado";
-  showToast("Jogos copiados.");
-  setTimeout(() => {
-    $("#copyGames").textContent = "Copiar";
-  }, 1500);
+  try {
+    await navigator.clipboard.writeText(text);
+    showToast("Dezenas copiadas.");
+  } catch {
+    showToast("Não consegui copiar as dezenas neste navegador.");
+  }
 }
 
 async function loadData() {
   const response = await fetch("data/lotofacil.json", { cache: "no-cache" });
-  if (!response.ok) throw new Error("Nao foi possivel carregar data/lotofacil.json");
+  if (!response.ok) throw new Error("Base indisponível");
   const data = await response.json();
   if (state.data && data.updated_at <= state.data.updated_at) return;
   state.data = data;
@@ -865,19 +868,17 @@ async function forceUpdate() {
   const button = $("#forceUpdate");
   const originalText = button.textContent;
   button.disabled = true;
-  button.textContent = "Atualizando...";
+  button.textContent = "Consultando…";
 
   try {
-    const response = await fetch("/api/update", { method: "POST" });
-    if (!response.ok) {
-      throw new Error("Atualizacao direta indisponivel neste ambiente.");
+    if (isLocalServer()) {
+      const response = await fetch("/api/update", { method: "POST" });
+      if (!response.ok || !(await response.json()).ok) throw new Error("Atualização indisponível.");
     }
-    const payload = await response.json();
-    if (!payload.ok) throw new Error(payload.message || "Nao foi possivel atualizar.");
     await loadData();
-    showToast("Base atualizada agora.");
-  } catch (error) {
-    showToast("Para forcar no online, rode no computador: npm run sync");
+    showToast(`Base consultada até o concurso ${state.analysis.sorted[0].contest}.`);
+  } catch {
+    showToast("Não consegui consultar os resultados. Tente novamente em instantes.");
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -903,9 +904,8 @@ function isStandalone() {
 }
 
 function updateInstallButtons(visible) {
-  installButtons().forEach((button) => {
-    button.hidden = !visible;
-  });
+  $("#installPanel").hidden = !visible;
+  $("#installApp").hidden = !visible;
 }
 
 async function installApp() {
@@ -919,17 +919,17 @@ async function installApp() {
   }
 
   if (isIos()) {
-    showToast("No iPhone, toque em Compartilhar e depois em Adicionar a Tela de Inicio.");
+    showToast("No Safari, toque em Compartilhar e depois em Adicionar à Tela de Início.");
     return;
   }
 
-  showToast("Se o botao de instalar nao aparecer, abra pelo Chrome e aguarde alguns segundos.");
+  showToast("A instalação não está disponível neste navegador.");
 }
 
 function setupPwa() {
   if ("serviceWorker" in navigator) {
     navigator.serviceWorker.register("sw.js").catch(() => {
-      showToast("Nao consegui ativar o modo offline agora.");
+      showToast("O modo offline está indisponível.");
     });
   }
 
@@ -974,7 +974,10 @@ async function init() {
   }
 }
 
-$("#generate").addEventListener("click", generateGames);
+$("#generate").addEventListener("click", () => {
+  if ($("#generationMode").value !== "daily") generateGames();
+  window.location.hash = "jogo";
+});
 $("#recentWindow").addEventListener("change", refreshAnalysis);
 $("#strategy").addEventListener("change", generateGames);
 $("#gameSize").addEventListener("change", generateGames);
@@ -995,8 +998,10 @@ $("#showMoreHistory").addEventListener("click", () => {
 });
 $("#clearHistory").addEventListener("click", clearHistory);
 $("#forceUpdate").addEventListener("click", forceUpdate);
-installButtons().forEach((button) => button.addEventListener("click", installApp));
+$("#installApp").addEventListener("click", installApp);
+window.addEventListener("hashchange", () => renderScreen(true));
 
+renderScreen();
 setupPwa();
 init();
 setInterval(init, DATA_REFRESH_INTERVAL);

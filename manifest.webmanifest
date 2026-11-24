@@ -1,22 +1,22 @@
 {
-  "name": "Gerador Lotofacil",
-  "short_name": "Lotofacil",
-  "description": "Analise historica e gerador de jogos equilibrados para Lotofacil.",
+  "name": "Gerador Lotofácil",
+  "short_name": "Lotofácil",
+  "description": "Jogo do dia, histórico de sorteios e diário de jogos.",
   "start_url": ".",
   "scope": ".",
   "display": "standalone",
-  "background_color": "#f5f6f2",
-  "theme_color": "#176b4d",
+  "background_color": "#f6f5fc",
+  "theme_color": "#f6f5fc",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "assets/icon-192.png",
+      "src": "assets/icon-192.png?v=10",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "assets/icon-512.png",
+      "src": "assets/icon-512.png?v=10",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

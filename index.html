@@ -1,204 +1,209 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="pt-BR">
   <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Gerador Lotofacil</title>
-    <meta name="theme-color" content="#176b4d">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>Gerador Lotofácil</title>
+    <meta name="theme-color" content="#f6f5fc">
     <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-title" content="Lotofacil">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Lotofácil">
     <link rel="manifest" href="manifest.webmanifest">
-    <link rel="icon" href="assets/icon.svg" type="image/svg+xml">
-    <link rel="apple-touch-icon" href="assets/icon-192.png">
-    <link rel="stylesheet" href="styles.css?v=9">
+    <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
+    <link rel="stylesheet" href="styles.css?v=10">
   </head>
   <body>
+    <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
     <header class="app-header">
-      <div class="brand-lockup">
-        <img src="assets/icon.svg" alt="" class="app-logo" width="44" height="44">
-        <div>
-          <p class="eyebrow">Analise historica</p>
-          <h1>Gerador Lotofacil</h1>
-        </div>
-      </div>
-      <div class="header-actions">
-        <button class="install-button" id="installApp" hidden>Instalar</button>
-        <div class="status" id="status">Carregando dados...</div>
+      <div class="header-inner">
+        <a href="#jogo" class="brand">
+          <img src="assets/icon.svg?v=10" width="40" height="40" alt="">
+          <span>Gerador <strong>Lotofácil</strong></span>
+        </a>
+        <nav class="app-nav" aria-label="Telas do aplicativo">
+          <a href="#jogo" data-tab="jogo" aria-current="page">Jogo do dia</a>
+          <a href="#estatisticas" data-tab="estatisticas">Estatísticas</a>
+          <a href="#diario" data-tab="diario">Diário</a>
+          <a href="#ajustes" data-tab="ajustes">Ajustes</a>
+        </nav>
+        <span id="status" class="data-status" role="status">Carregando base</span>
       </div>
     </header>
 
-    <main class="layout">
-      <section class="panel controls daily-mode" id="gameControls">
-        <h2>Configurar jogos</h2>
-        <div class="control-grid">
-          <label class="multiple-mode">
-            Quantidade
-            <input id="gameCount" type="number" min="1" max="100" value="4">
-          </label>
-          <label>
-            Janela do ranking
-            <input id="recentWindow" type="number" min="10" max="500" value="120">
-          </label>
-          <label class="multiple-mode">
-            Numeros
-            <select id="gameSize">
-              <option value="15">15 numeros</option>
-              <option value="16">16 numeros</option>
-              <option value="17">17 numeros</option>
-              <option value="18">18 numeros</option>
-              <option value="19">19 numeros</option>
-              <option value="20">20 numeros</option>
-            </select>
-          </label>
-          <label class="multiple-mode">
-            Perfil
-            <select id="strategy">
-              <option value="balanced">Equilibrado</option>
-              <option value="hot">Mais sorteados</option>
-              <option value="overdue">Mais atrasados</option>
-              <option value="mixed">Misto agressivo</option>
-            </select>
-          </label>
-          <label>
-            Modo
-            <select id="generationMode">
-              <option value="daily">1 jogo do dia</option>
-              <option value="diversified">Diversificar jogos</option>
-              <option value="closure20">Base 20 amarrada</option>
-            </select>
-          </label>
-          <label>
-            Limite diario
-            <input id="dailyBudget" type="number" min="0" step="0.50" value="3.50">
-          </label>
-          <label class="multiple-mode">
-            Repetir último
-            <select id="lastRepeatRange">
-              <option value="auto">Automatico</option>
-              <option value="6-8">6 a 8</option>
-              <option value="7-10">7 a 10</option>
-              <option value="8-11">8 a 11</option>
-              <option value="0-15">Livre</option>
-            </select>
-          </label>
-        </div>
-        <button id="generate" hidden>Gerar jogos</button>
-        <p class="note" id="strategyNote">Uma combinação de 15 dezenas por concurso.</p>
-      </section>
-
-      <section class="panel summary">
-        <div class="section-heading">
-          <div>
-            <p class="kicker">Base historica</p>
-            <h2>Resumo dos dados</h2>
-          </div>
-          <button class="ghost action-button" id="forceUpdate">Atualizar</button>
-        </div>
-        <div class="metrics">
-          <div><span id="metricContests">-</span><small>concursos</small></div>
-          <div><span id="metricLatest">-</span><small>ultimo concurso</small></div>
-          <div><span id="metricAvgSum">-</span><small>soma media</small></div>
-          <div class="metric-period"><span id="metricRange">-</span><small>periodo</small></div>
-        </div>
-        <div class="update-info">
-          <span id="metricUpdated">Atualizado em: -</span>
-          <small id="updateMode">No app online, a atualizacao depende do envio da base pelo GitHub.</small>
+    <main class="layout" id="conteudo" tabindex="-1">
+      <section class="screen" id="jogo" data-screen aria-labelledby="gameHeading">
+        <div class="game-layout">
+          <section class="ticket" aria-labelledby="gameHeading">
+            <div class="ticket-head">
+              <p id="gameContest" class="contest-chip" aria-live="polite">Carregando concurso…</p>
+              <h1 id="gameHeading" tabindex="-1">Jogo do dia</h1>
+            </div>
+            <div id="coverage" class="coverage" hidden></div>
+            <div id="games" class="games" aria-live="polite"></div>
+            <div class="ticket-actions">
+              <button class="primary" id="savePlayed" disabled>Registrar jogo</button>
+              <button class="ghost" id="copyGames" disabled>Copiar dezenas</button>
+            </div>
+          </section>
+          <aside class="panel game-insights" id="gameInsights" aria-labelledby="insightsHeading">
+            <h2 id="insightsHeading">Leitura da sugestão</h2>
+            <div id="dailyInsights"></div>
+            <details id="dailyDetails" hidden>
+              <summary>Comparar frequência das dezenas</summary>
+              <div id="dailyFrequencies"></div>
+            </details>
+            <p class="subtle-rule" id="fairChance">Uma aposta simples tem 1 chance em 3.268.760 de fazer 15 pontos.</p>
+          </aside>
         </div>
       </section>
 
-      <section class="panel wide recommendation">
-        <div class="section-heading">
-          <div>
-            <h2 id="gameHeading">Jogo do dia</h2>
-            <p class="helper" id="gameContest" aria-live="polite">Carregando o próximo concurso…</p>
-          </div>
-          <div class="button-row">
-            <button class="ghost action-button" id="savePlayed" disabled>Registrar jogo</button>
-            <button class="ghost action-button" id="copyGames">Copiar</button>
-          </div>
+      <section class="screen" id="estatisticas" data-screen aria-labelledby="statsHeading" hidden>
+        <div class="screen-heading">
+          <h1 id="statsHeading" tabindex="-1">Estatísticas</h1>
+          <p class="helper">Explore o histórico de sorteios e compare a estratégia com uma escolha aleatória.</p>
         </div>
-        <div id="coverage" class="coverage"></div>
-        <div id="games" class="games"></div>
-        <p class="helper" id="fairChance">Em um sorteio justo, toda combinação de 15 dezenas tem a mesma chance de fazer 15 pontos, 1 em 3.268.760.</p>
-        <details class="panel-details" id="dailyDetails" hidden>
-          <summary>Ver a comparação das dezenas</summary>
-          <div id="dailyFrequencies"></div>
-        </details>
-        <button class="install-button full mobile-install" id="installAppMobile" hidden>Instalar no celular</button>
+        <section class="panel summary" aria-labelledby="summaryHeading">
+          <div class="section-heading">
+            <h2 id="summaryHeading">Base de resultados</h2>
+            <button class="ghost" id="forceUpdate">Consultar resultados</button>
+          </div>
+          <div class="metrics">
+            <div><strong id="metricContests">–</strong><small>Concursos na base</small></div>
+            <div><strong id="metricLatest">–</strong><small>Último concurso</small></div>
+            <div><strong id="metricAvgSum">–</strong><small>Soma média das dezenas</small></div>
+            <div class="metric-period"><strong id="metricRange">–</strong><small>Período coberto</small></div>
+          </div>
+          <p class="helper" id="metricUpdated"></p>
+        </section>
+        <section class="panel" aria-labelledby="benchmarkHeading">
+          <h2 id="benchmarkHeading">Simulação histórica</h2>
+          <p class="helper" id="legacyBacktestNote" hidden>Acertos dos jogos atuais nos últimos concursos.</p>
+          <details id="dailyBenchmark">
+            <summary>Ver o desempenho do jogo do dia</summary>
+            <div id="dailyBenchmarkResult"></div>
+          </details>
+          <div id="backtest" class="backtest" hidden></div>
+          <div id="strategyBacktest" hidden></div>
+        </section>
+        <div class="stats-layout">
+          <section class="panel" aria-labelledby="rankingHeading">
+            <div class="section-heading">
+              <h2 id="rankingHeading">Ranking das dezenas</h2>
+              <button class="ghost" id="downloadCsv">Baixar CSV</button>
+            </div>
+            <p class="helper">Atraso é o número de concursos desde a última vez que a dezena saiu.</p>
+            <table class="comparison-table">
+              <thead><tr><th scope="col">Dezena</th><th scope="col">Histórico</th><th scope="col" id="rankingWindow">Recentes</th><th scope="col">Atraso</th></tr></thead>
+              <tbody id="numberRanking"></tbody>
+            </table>
+          </section>
+          <section class="panel" aria-labelledby="pairsHeading">
+            <h2 id="pairsHeading">Pares mais frequentes</h2>
+            <p class="helper">Dezenas que mais saíram juntas na base inteira.</p>
+            <div id="pairRanking" class="pair-list"></div>
+          </section>
+        </div>
       </section>
 
-      <section class="panel wide">
-        <div class="section-title">
-          <div>
-            <p class="kicker">Leitura numero a numero</p>
-            <h2>Ranking dos numeros</h2>
-          </div>
-          <button class="ghost action-button" id="downloadCsv">CSV</button>
+      <section class="screen" id="diario" data-screen aria-labelledby="diaryHeading" hidden>
+        <div class="screen-heading">
+          <h1 id="diaryHeading" tabindex="-1">Diário de jogos</h1>
+          <p class="helper">Seus jogos ficam neste navegador. Os acertos aparecem quando o resultado entra na base.</p>
         </div>
-        <p class="helper">Ordenado pela pontuacao combinada. Compare percentual historico, presenca recente e atraso atual.</p>
-        <div id="numberRanking" class="number-grid"></div>
+        <section class="panel" aria-labelledby="historyHeading">
+          <div class="section-heading">
+            <h2 id="historyHeading">Meus registros</h2>
+            <button class="ghost" id="exportDiary">Salvar backup</button>
+          </div>
+          <div id="historyStats" class="history-stats"></div>
+          <details>
+            <summary>Registrar dezenas manualmente</summary>
+            <form id="manualGame" class="manual-form">
+              <label>Concurso <input id="manualContest" type="number" min="1" step="1" required></label>
+              <label>15 dezenas <input id="manualNumbers" type="text" placeholder="01 02 03 …" autocomplete="off" required></label>
+              <button class="primary" type="submit">Salvar jogo</button>
+            </form>
+          </details>
+          <div id="history" class="history"></div>
+          <button class="ghost more-button" id="showMoreHistory" hidden>Mostrar mais jogos</button>
+          <details>
+            <summary>Gerenciar diário</summary>
+            <p class="helper">Importe um backup para recuperar ou transferir seus jogos.</p>
+            <div class="button-row">
+              <button class="ghost" id="importDiary">Importar backup</button>
+              <button class="ghost danger" id="clearHistory">Limpar diário</button>
+              <input type="file" id="diaryFile" accept=".json,application/json" hidden>
+            </div>
+          </details>
+        </section>
       </section>
 
-      <section class="panel">
-        <div class="section-heading">
-          <div>
-            <p class="kicker">Combinacoes</p>
-            <h2>Pares fortes</h2>
-          </div>
+      <section class="screen" id="ajustes" data-screen aria-labelledby="settingsHeading" hidden>
+        <div class="screen-heading">
+          <h1 id="settingsHeading" tabindex="-1">Ajustes</h1>
+          <p class="helper">Escolha o modo de geração e a janela exibida no ranking.</p>
         </div>
-        <p class="helper">Pares que mais apareceram juntos no historico.</p>
-        <div id="pairRanking" class="pair-list"></div>
-      </section>
-
-      <section class="panel wide">
-        <div class="section-heading">
-          <div>
-            <h2>Desempenho em concursos passados</h2>
+        <section class="panel controls daily-mode" id="gameControls" aria-labelledby="controlsHeading">
+          <h2 id="controlsHeading">Configuração dos jogos</h2>
+          <div class="control-grid">
+            <label>Modo
+              <select id="generationMode">
+                <option value="daily">1 jogo do dia</option>
+                <option value="diversified">Diversificar jogos</option>
+                <option value="closure20">Base 20 amarrada</option>
+              </select>
+            </label>
+            <label>Limite diário em R$
+              <input id="dailyBudget" type="number" min="0" step="0.50" value="3.50">
+            </label>
+            <label>Janela do ranking em concursos
+              <input id="recentWindow" type="number" min="10" max="500" value="120">
+            </label>
+            <label class="multiple-mode">Quantidade
+              <input id="gameCount" type="number" min="1" max="100" value="4">
+            </label>
+            <label class="multiple-mode">Dezenas por jogo
+              <select id="gameSize">
+                <option value="15">15 dezenas</option>
+                <option value="16">16 dezenas</option>
+                <option value="17">17 dezenas</option>
+                <option value="18">18 dezenas</option>
+                <option value="19">19 dezenas</option>
+                <option value="20">20 dezenas</option>
+              </select>
+            </label>
+            <label class="multiple-mode">Perfil
+              <select id="strategy">
+                <option value="balanced">Equilibrado</option>
+                <option value="hot">Mais sorteados</option>
+                <option value="overdue">Mais atrasados</option>
+                <option value="mixed">Misto agressivo</option>
+              </select>
+            </label>
+            <label class="multiple-mode">Dezenas repetidas do último sorteio
+              <select id="lastRepeatRange">
+                <option value="auto">Automático</option>
+                <option value="6-8">6 a 8</option>
+                <option value="7-10">7 a 10</option>
+                <option value="8-11">8 a 11</option>
+                <option value="0-15">Livre</option>
+              </select>
+            </label>
           </div>
-        </div>
-        <p class="helper" id="legacyBacktestNote" hidden>Compara os jogos sugeridos com os últimos concursos.</p>
-        <details class="panel-details" id="dailyBenchmark">
-          <summary>Comparar o jogo do dia com a referência aleatória</summary>
-          <div id="dailyBenchmarkResult"></div>
-        </details>
-        <div id="backtest" class="backtest"></div>
-        <div id="strategyBacktest" class="strategy-backtest"></div>
-      </section>
-
-      <section class="panel wide">
-        <div class="section-heading">
-          <div>
-            <p class="kicker">Seu uso</p>
-            <h2>Diário de jogos</h2>
+          <p class="helper" id="strategyNote"></p>
+          <button class="primary more-button" id="generate">Ver jogo do dia</button>
+        </section>
+        <section class="panel" id="installPanel" hidden>
+          <div class="section-heading">
+            <h2>Instalar na tela inicial</h2>
+            <button class="ghost" id="installApp" hidden>Instalar</button>
           </div>
-          <button class="ghost action-button" id="exportDiary">Salvar backup</button>
-        </div>
-        <p class="helper">O diário fica neste navegador. Os acertos aparecem quando o resultado do concurso entra na base.</p>
-        <details class="panel-details">
-          <summary>Registrar dezenas que joguei</summary>
-          <form id="manualGame">
-            <label>Concurso <input id="manualContest" type="number" min="1" step="1" required></label>
-            <label>15 dezenas <input id="manualNumbers" type="text" placeholder="01 02 03 …" autocomplete="off" required></label>
-            <button type="submit">Salvar no diário</button>
-          </form>
-        </details>
-        <details class="panel-details">
-          <summary>Gerenciar diário</summary>
-          <p class="helper">Use o backup para recuperar seus jogos neste navegador ou transferi-los para outro aparelho.</p>
-          <div class="diary-actions">
-            <button class="ghost" id="importDiary">Importar backup</button>
-            <button class="ghost" id="clearHistory">Limpar diário</button>
-            <input type="file" id="diaryFile" accept=".json,application/json" hidden>
-          </div>
-        </details>
-        <div id="historyStats" class="history-stats"></div>
-        <div id="history" class="history"></div>
-        <button class="ghost" id="showMoreHistory" hidden>Mostrar mais jogos</button>
+          <p class="helper">Abra o Gerador Lotofácil direto pelo ícone do aplicativo.</p>
+        </section>
       </section>
     </main>
 
-    <div class="toast" id="toast" hidden></div>
-    <script type="module" src="app.js?v=9"></script>
+    <div class="toast" id="toast" role="status" hidden></div>
+    <script type="module" src="app.js?v=10"></script>
   </body>
 </html>
