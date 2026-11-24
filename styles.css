@@ -179,6 +179,24 @@ a { color: inherit; }
   color: #fff;
   box-shadow: inset 0 -3px 0 var(--accent-dark);
 }
+.draw-profile {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .6rem .75rem;
+  max-width: 450px;
+  margin: .75rem 0 0;
+  padding: .65rem .8rem;
+  border-radius: 12px;
+  background: var(--muted-surface);
+}
+.draw-profile dt { color: var(--muted); font-size: .75rem; line-height: 1.25; }
+.draw-profile dd {
+  margin: .2rem 0 0;
+  color: var(--accent-dark);
+  font-size: .9rem;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
 .contest-plays { display: grid; gap: .65rem; margin-top: .8rem; }
 .compared-play { min-width: 0; padding: .85rem; border: 1px solid var(--line); border-radius: 14px; }
 .compared-play .numbers { margin-top: .6rem; }
@@ -407,6 +425,20 @@ details summary {
   gap: .85rem;
   margin-top: 1rem;
 }
+.simulation-numbers { grid-column: 1 / -1; }
+.simulation-numbers textarea {
+  width: 100%;
+  min-height: 44px;
+  padding: .58rem .68rem;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--page);
+  color: var(--ink);
+  font: inherit;
+  font-size: 1rem;
+  resize: vertical;
+}
+.simulation-counts { grid-template-columns: repeat(auto-fit, minmax(min(100%, 100px), 1fr)); }
 .daily-mode .multiple-mode { display: none; }
 label { display: grid; gap: .4rem; color: var(--muted); font-size: .85rem; font-weight: 720; }
 input, select {
@@ -458,6 +490,10 @@ input, select {
   .history-item { grid-template-columns: 1fr; gap: .55rem; }
   .history-actions { display: flex; align-items: center; flex-wrap: wrap; }
   .toast { right: .8rem; bottom: calc(72px + env(safe-area-inset-bottom)); }
+}
+
+@media (max-width: 520px) {
+  .draw-profile { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 
 @media (max-width: 360px) {

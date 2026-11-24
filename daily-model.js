@@ -1,9 +1,11 @@
 import { combinationCount, DRAW_SIZE as GAME_SIZE, fixedSizeLogNormalizer, POSSIBLE_GAMES, TOTAL_NUMBERS } from "./lottery-math.js?v=13";
+import { buildRatingProfile, MIN_DAILY_RATING, rateGame } from "./game-rating.js?v=15";
 
 const SHORT_WINDOW = 30;
 const RECENT_WINDOW = 120;
 const DIARY_WINDOW = 12;
 const CANDIDATE_COUNT = 160;
+const EXTRA_CANDIDATE_BATCHES = 8;
 export const FORECAST_START_CONTEST = 3836;
 const FORECAST_EVIDENCE_THRESHOLD = Math.log(20);
 const FAIR_FREQUENCY = GAME_SIZE / TOTAL_NUMBERS;
@@ -97,7 +99,7 @@ function forecastWeight(numbers, weights) {
   return numbers.reduce((total, number) => total + weights[number - 1], 0);
 }
 
-function selectGame(model, contest, diary, forecast = null) {
+function selectGame(model, contest, diary, profile, forecast = null) {
   const previous = diary.filter((entry) => entry.targetContest < contest)
     .sort((a, b) => b.targetContest - a.targetContest || Date.parse(b.createdAt) - Date.parse(a.createdAt));
   const recent = previous.slice(0, DIARY_WINDOW);
@@ -110,27 +112,13 @@ function selectGame(model, contest, diary, forecast = null) {
   const lastPlayed = new Set(recent[0]?.numbers);
   const random = contestRandom(contest);
   let best;
-  if (forecast) {
-    const ranked = [...NUMBERS].sort((first, second) => forecast[second - 1] - forecast[first - 1]);
-    const top = ranked.slice(0, GAME_SIZE).sort((a, b) => a - b);
-    if (!used.has(top.join(","))) return { numbers: top, previousCount: recent.length, lastPlayed };
-    // If the most likely set was already played, compare all one-number swaps and the sampled alternatives.
-    for (const replacement of ranked.slice(GAME_SIZE)) {
-      for (const number of top) {
-        const numbers = top.map((value) => value === number ? replacement : value).sort((a, b) => a - b);
-        if (used.has(numbers.join(","))) continue;
-        const score = forecastWeight(numbers, forecast);
-        if (!best || score > best.score) best = { numbers, score };
-      }
-    }
-  }
-  for (let attempt = 0; attempt < CANDIDATE_COUNT; attempt += 1) {
-    const numbers = sampleNumbers(random);
-    if (used.has(numbers.join(","))) continue;
+  const eligible = (numbers) => !used.has(numbers.join(",")) && rateGame(numbers, profile).score >= MIN_DAILY_RATING;
+  function consider(numbers) {
+    if (!eligible(numbers)) return;
     if (forecast) {
       const score = forecastWeight(numbers, forecast);
       if (!best || score > best.score) best = { numbers, score };
-      continue;
+      return;
     }
     let total = 0;
     let pairTotal = 0;
@@ -149,13 +137,25 @@ function selectGame(model, contest, diary, forecast = null) {
       - 0.002 * Math.max(playedRepeat - 9, 0) ** 2;
     if (!best || score > best.score) best = { numbers, score };
   }
-  let numbers = best?.numbers;
-  if (!numbers) {
-    do {
-      numbers = sampleNumbers(random);
-    } while (used.size < POSSIBLE_GAMES && used.has(numbers.join(",")));
+
+  if (forecast) {
+    const ranked = [...NUMBERS].sort((first, second) => forecast[second - 1] - forecast[first - 1]);
+    const top = ranked.slice(0, GAME_SIZE).sort((a, b) => a - b);
+    if (eligible(top)) return { numbers: top, previousCount: recent.length, lastPlayed };
+    // Compare one-number swaps around the forecast's top game with sampled alternatives.
+    for (const replacement of ranked.slice(GAME_SIZE)) {
+      for (const number of top) {
+        consider(top.map((value) => value === number ? replacement : value).sort((a, b) => a - b));
+      }
+    }
   }
-  return { numbers, previousCount: recent.length, lastPlayed };
+
+  for (let attempt = 0; attempt < CANDIDATE_COUNT; attempt += 1) consider(sampleNumbers(random));
+  // Try additional batches at the same rating threshold.
+  for (let batch = 0; !best && batch < EXTRA_CANDIDATE_BATCHES; batch += 1) {
+    for (let attempt = 0; attempt < CANDIDATE_COUNT; attempt += 1) consider(sampleNumbers(random));
+  }
+  return { numbers: best?.numbers ?? [], previousCount: recent.length, lastPlayed };
 }
 
 export function createDailyGame(draws, diary) {
@@ -164,7 +164,8 @@ export function createDailyGame(draws, diary) {
   const registered = diary.find((entry) => entry.targetContest === contest && entry.numbers.length === GAME_SIZE);
   const forecastEnabled = forwardForecastTest(draws).supported;
   const forecast = forecastEnabled ? forecastLogWeights(model) : null;
-  const { numbers: suggested, previousCount, lastPlayed } = selectGame(model, contest, diary, forecast);
+  const profile = buildRatingProfile(draws, contest);
+  const { numbers: suggested, previousCount, lastPlayed } = selectGame(model, contest, diary, profile, forecast);
   const numbers = registered?.numbers ?? suggested;
   return {
     contest, registered: Boolean(registered), numbers, previousCount, forecastEnabled,
@@ -249,20 +250,25 @@ export function testDailyGame(draws, maxTests = 120) {
   for (let index = maxIndex; index >= 0; index -= 1) {
     const draw = draws[index];
     const model = buildModel(draws, index + 1, totals);
-    const { numbers } = selectGame(model, draw.contest, diary);
-    if (index < sampleSize) {
-      hits[numbers.filter((number) => draw.numbers.includes(number)).length] += 1;
+    const profile = buildRatingProfile(draws, draw.contest);
+    const { numbers } = selectGame(model, draw.contest, diary, profile);
+    if (numbers.length) {
+      if (index < sampleSize) {
+        hits[numbers.filter((number) => draw.numbers.includes(number)).length] += 1;
+      }
+      diary.unshift({ numbers, targetContest: draw.contest });
     }
-    diary.unshift({ numbers, targetContest: draw.contest });
     addDraw(totals, draw.numbers, draws[index + 1]?.numbers);
   }
-  const mean = hits.reduce((sum, count, score) => sum + count * score, 0) / sampleSize;
+  const played = hits.reduce((sum, count) => sum + count, 0);
+  if (!played) return null;
+  const mean = hits.reduce((sum, count, score) => sum + count * score, 0) / played;
   const fairMean = GAME_SIZE * FAIR_FREQUENCY;
   const fairVariance = GAME_SIZE * FAIR_FREQUENCY * (1 - FAIR_FREQUENCY)
     * (TOTAL_NUMBERS - GAME_SIZE) / (TOTAL_NUMBERS - 1);
-  const margin = 1.96 * Math.sqrt(fairVariance / sampleSize);
+  const margin = 1.96 * Math.sqrt(fairVariance / played);
   return {
-    sampleSize,
+    sampleSize, played,
     firstContest: draws[sampleSize - 1].contest,
     lastContest: draws[0].contest,
     mean,

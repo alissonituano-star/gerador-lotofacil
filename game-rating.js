@@ -1,6 +1,7 @@
 const POPULATION_SIZE = 25;
 const DRAW_SIZE = 15;
 export const RATING_WINDOW = 120;
+export const MIN_DAILY_RATING = 65;
 const PRIOR_DRAWS = 30;
 
 const CRITERIA = [
@@ -12,7 +13,7 @@ const CRITERIA = [
 
 export const RATING_LEVELS = [
   { minimum: 85, range: "85–100", label: "Bem equilibrado", tone: "balanced" },
-  { minimum: 65, range: "65–84", label: "Aceitável", tone: "acceptable" },
+  { minimum: MIN_DAILY_RATING, range: "65–84", label: "Aceitável", tone: "acceptable" },
   { minimum: 0, range: "0–64", label: "Fora do padrão", tone: "unusual" },
 ];
 

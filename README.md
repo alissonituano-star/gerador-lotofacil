@@ -94,7 +94,7 @@ Ele executa `npm run sync`, que baixa os resultados pelo seu computador, cria co
 - Distribuicao por linhas, colunas, pares/impares, baixos/altos e soma.
 - Geracao de jogos ranqueados por uma heuristica estatistica.
 - Backtest simples, comparando jogos sugeridos contra sorteios passados.
-- Modo `1 jogo do dia`, com uma recomendação de 15 dezenas por concurso. Compara as janelas de 30 e 120 concursos com o histórico completo, ajusta a coocorrência de pares e usa os últimos 12 jogos registrados para variar as dezenas.
+- Modo `1 jogo do dia`, com uma recomendação de 15 dezenas e nota mínima de 65/100. Compara as janelas de 30 e 120 concursos com o histórico completo, ajusta a coocorrência de pares e usa os últimos 12 jogos registrados para variar as dezenas.
 - Simulação do jogo do dia em até 120 concursos, usando apenas dados anteriores a cada sorteio e comparando os acertos com as probabilidades exatas de uma combinação aleatória.
 - Calculadora de 15 acertos para combinações distintas por concurso, com custo simulado e chance acumulada em sorteios independentes.
 - Avaliação da probabilidade atribuída ao resultado completo. O modelo de frequências só orienta a recomendação quando a razão de verossimilhanças contra a distribuição uniforme atinge 20 nos sorteios acompanhados a partir do concurso 3836. A simulação histórica é informativa e fica fora dessa decisão.
@@ -102,6 +102,8 @@ Ele executa `npm run sync`, que baixa os resultados pelo seu computador, cria co
 - Modo `Base 20 amarrada`, criando jogos dentro de uma base forte de 20 dezenas.
 - Filtro anti-jogo-fraco para soma, paridade, altos/baixos, sequencias e concentracao.
 - Diário local de jogos, com registro manual, conferência automática de acertos e exportação e importação de backup JSON.
+- Aba `Conferir`, com resultado por concurso, comparação com os jogos do Diário e resumo de paridade, soma, dezenas de 01 a 13 e repetição do sorteio anterior.
+- Simulação de combinações de 15 dezenas no histórico completo ou nos concursos registrados no Diário, com contagem por faixa de 11 a 15 acertos.
 
 ## Estrategia recomendada
 

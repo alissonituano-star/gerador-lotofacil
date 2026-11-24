@@ -1,8 +1,9 @@
-import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyGame } from "./daily-model.js?v=13";
+import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyGame } from "./daily-model.js?v=15";
 import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=13";
-import { buildRatingProfile, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=13";
+import { buildRatingProfile, MIN_DAILY_RATING, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=15";
 import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
 import { compareContest } from "./contest-comparison.js?v=14";
+import { simulateHistoricalGame } from "./contest-simulation.js?v=15";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -19,6 +20,7 @@ const state = {
   historyLimit: 12,
   manualDefaultContest: null,
   lastComparedContest: null,
+  simulation: null,
   installPrompt: null,
 };
 
@@ -41,7 +43,11 @@ function renderScreen(focusHeading = false) {
     renderDailyBenchmark();
     renderForecastAudit();
   }
-  if (screen.id === "concursos") renderContestComparison(true);
+  if (screen.id === "concursos") {
+    renderContestComparison(true);
+    if (screenChanged) refreshHistoricalSimulation();
+    if (focusHeading && !screenChanged) window.scrollTo(0, 0);
+  }
   if (focusHeading && screenChanged) {
     window.scrollTo(0, 0);
     screen.querySelector("h1").focus({ preventScroll: true });
@@ -315,7 +321,7 @@ function generateGames() {
   state.daily = mode === "daily" ? createDailyGame(analysis.sorted, diary) : null;
 
   if (state.daily) {
-    state.games = [{ numbers: state.daily.numbers }];
+    state.games = state.daily.numbers.length ? [{ numbers: state.daily.numbers }] : [];
     finishGeneration();
     return;
   }
@@ -407,8 +413,9 @@ function finishGeneration() {
   $("#savePlayed").textContent = state.daily?.registered ? "Jogo registrado" : "Registrar jogo";
   $("#copyGames").disabled = !state.games.length;
   $("#copyGames").textContent = isDaily ? "Copiar dezenas" : "Copiar jogos";
-  $("#gameInsights").hidden = !isDaily;
-  $("#jogo").classList.toggle("multiple-games", !isDaily);
+  const hasDailyGame = isDaily && state.games.length > 0;
+  $("#gameInsights").hidden = !hasDailyGame;
+  $("#jogo").classList.toggle("multiple-games", !hasDailyGame);
   $("#dailyDetails").hidden = !isDaily;
   $("#coverage").hidden = isDaily;
   $("#legacyBacktestNote").hidden = isDaily;
@@ -561,6 +568,10 @@ function renderRatingLegends() {
 }
 
 function renderDailyGame(game) {
+  if (!game.numbers.length) {
+    $("#games").textContent = `A busca terminou sem encontrar um jogo novo com nota ${MIN_DAILY_RATING} ou maior.`;
+    return;
+  }
   const rating = ratingFor(game.numbers, game.contest);
   $("#games").innerHTML = `
     <div class="daily-numbers" aria-label="15 dezenas">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
@@ -568,6 +579,7 @@ function renderDailyGame(game) {
   `;
   $("#insightsHeading").textContent = game.registered ? "Leitura do jogo registrado" : "Leitura da sugestão";
   $("#dailyInsights").innerHTML = `
+    ${game.registered ? "" : `<p class="helper">O Jogo do dia exige nota mínima de ${MIN_DAILY_RATING}/100.</p>`}
     ${game.forecastEnabled && !game.registered ? '<p class="helper">Seleção orientada pelo modelo prospectivo.</p>' : ""}
     <dl class="insights-list">
       <div><dt>Em comum com o último sorteio</dt><dd>${game.drawnRepeat} dezenas</dd></div>
@@ -596,17 +608,17 @@ function renderDailyBenchmark() {
   const test = testDailyGame(state.analysis.sorted);
   state.benchmarkBase = state.data;
   if (!test) {
-    $("#dailyBenchmarkResult").textContent = "A base ainda não tem concursos suficientes para a simulação.";
+    $("#dailyBenchmarkResult").textContent = "Sem jogos suficientes para esta simulação.";
     return;
   }
   $("#dailyBenchmarkResult").innerHTML = `
-    <p class="helper">${test.sampleSize} concursos, do ${test.firstContest} ao ${test.lastContest}. Cada sugestão considerou apenas os dados disponíveis antes do sorteio.</p>
+    <p class="helper">${test.sampleSize} concursos, do ${test.firstContest} ao ${test.lastContest}. Cada sugestão usou a nota mínima de ${MIN_DAILY_RATING}/100 e os dados anteriores ao sorteio.${test.played < test.sampleSize ? ` A regra permitiu sugerir jogos em ${test.played} concursos.` : ""}</p>
     <p class="helper"><strong>${formatPoints.format(test.mean)}</strong> acertos em média na simulação. Para uma amostra desse tamanho, o acaso tem média esperada de ${formatPoints.format(test.fairMean)} e faixa de 95% de ${formatPoints.format(test.lowerFairMean)} a ${formatPoints.format(test.upperFairMean)}.</p>
     <table class="comparison-table">
       <thead><tr><th scope="col">Acertos</th><th scope="col">Simulação</th><th scope="col">Referência aleatória</th></tr></thead>
       <tbody>${test.rows.map(({ score, observed, expected }) => `
         <tr><th scope="row">${score === 15 ? "15" : `${score}+`}</th>
-        <td>${observed}/${test.sampleSize} (${formatPercent.format(observed / test.sampleSize)})</td>
+        <td>${observed}/${test.played} (${formatPercent.format(observed / test.played)})</td>
         <td>${score === 15 ? "1 em 3.268.760" : (score === 14 ? formatSmallPercent : formatPercent).format(expected)}</td></tr>
       `).join("")}</tbody>
     </table>
@@ -786,7 +798,8 @@ function renderContestComparison(updateInput = false) {
     return;
   }
 
-  const result = state.analysis.sorted.find((draw) => draw.contest === contest);
+  const drawIndex = state.analysis.sorted.findIndex((draw) => draw.contest === contest);
+  const result = state.analysis.sorted[drawIndex];
   const { draw, plays } = compareContest(contest, result, getPlayedGames());
   $("#drawDate").textContent = draw
     ? `Concurso ${contest} · ${draw.date}`
@@ -801,11 +814,26 @@ function renderContestComparison(updateInput = false) {
       }).join("")}
     </ol>
     <p class="helper">As dezenas em roxo saíram no sorteio.</p>
+    ${renderDrawProfile(draw, state.analysis.sorted[drawIndex + 1])}
   ` : "";
 
   $("#contestPlays").innerHTML = plays.length
     ? renderComparedPlays(plays, Boolean(draw))
     : '<p class="empty-state">Nenhum jogo registrado para este concurso no seu Diário.</p>';
+}
+
+function renderDrawProfile(draw, previous) {
+  const { odd, even, sum, low } = gameProfile(draw.numbers);
+  return `
+    <dl class="draw-profile" aria-label="Perfil do sorteio">
+      <div><dt>Ímpares / pares</dt><dd>${odd} / ${even}</dd></div>
+      <div><dt>Soma</dt><dd>${sum}</dd></div>
+      <div><dt>Dezenas de 01 a 13</dt><dd>${low}</dd></div>
+      ${previous?.contest === draw.contest - 1
+        ? `<div><dt>Repetidas do anterior</dt><dd>${intersectionCount(draw.numbers, previous.numbers)}</dd></div>`
+        : ""}
+    </dl>
+  `;
 }
 
 function renderComparedPlays(plays, hasResult) {
@@ -837,6 +865,71 @@ function renderComparedPlays(plays, hasResult) {
   `;
 }
 
+function parseFifteenNumbers(value) {
+  const digits = value.trim().split(/[\s,;-]+/);
+  const numbers = digits.map(Number).sort((a, b) => a - b);
+  return digits.every((digit) => /^\d{1,2}$/.test(digit)) && validNumbers(numbers, DRAW_SIZE, DRAW_SIZE)
+    ? numbers : null;
+}
+
+function refreshHistoricalSimulation() {
+  const select = $("#simulationDiary");
+  const selected = select.value;
+  const diary = getPlayedGames();
+  const playable = diary.filter((entry) => Number.isSafeInteger(entry.targetContest)
+    && validNumbers(entry.numbers, DRAW_SIZE, DRAW_SIZE));
+  select.innerHTML = `
+    <option value="">${playable.length ? "Escolha um jogo registrado" : "Nenhum jogo de 15 dezenas registrado"}</option>
+    ${playable.map((entry) => `
+      <option value="${diaryEntryKey(entry)}">Concurso ${entry.targetContest} · ${entry.numbers.map(formatNumber).join(" ")}</option>
+    `).join("")}
+  `;
+  select.value = selected;
+  select.disabled = !playable.length;
+  $("#simulationSubmit").disabled = !state.analysis;
+  if (state.simulation) renderHistoricalSimulation(diary);
+}
+
+function resetHistoricalSimulation() {
+  state.simulation = null;
+  $("#simulationResults").hidden = true;
+  $("#simulationStatus").textContent = "";
+}
+
+function startHistoricalSimulation(event) {
+  event.preventDefault();
+  if (!state.analysis) return;
+  const numbers = parseFifteenNumbers($("#simulationNumbers").value);
+  if (!numbers) {
+    resetHistoricalSimulation();
+    $("#simulationStatus").textContent = "Digite 15 dezenas diferentes entre 01 e 25.";
+    return;
+  }
+  state.simulation = { numbers, onlyPlayed: $("#simulationScope").value === "played" };
+  renderHistoricalSimulation(getPlayedGames());
+}
+
+function renderHistoricalSimulation(diary) {
+  const { numbers, onlyPlayed } = state.simulation;
+  const playedContests = onlyPlayed ? new Set(diary.map((entry) => entry.targetContest)) : null;
+  const { sampleSize, hits, best } = simulateHistoricalGame(numbers, state.analysis.sorted, playedContests);
+  $("#simulationResults").hidden = sampleSize === 0;
+  if (!sampleSize) {
+    $("#simulationStatus").textContent = "Seu Diário ainda não tem concursos com resultado para simular.";
+    return;
+  }
+  const qualifying = Object.values(hits).reduce((sum, count) => sum + count, 0);
+  $("#simulationStatus").textContent = `Esse jogo teria alcançado uma faixa de prêmio (11 a 15 acertos) em ${formatInteger.format(qualifying)} de ${formatInteger.format(sampleSize)} concursos analisados.`;
+  $("#simulationCounts").innerHTML = Object.entries(hits).map(([points, count]) => `
+    <div><strong>${formatInteger.format(count)}</strong><small>${points} acertos</small></div>
+  `).join("");
+  $("#simulationBest").hidden = best.length === 0;
+  $("#simulationMatches").innerHTML = best.map(({ contest, date, points }) => `
+    <tr><th scope="row"><a href="#concursos/${contest}">${contest}</a></th>
+      <td>${date}</td><td>${points}</td></tr>
+  `).join("");
+}
+
 function diaryEntry(numbers, targetContest, mode, strategy, score = null) {
   return {
     key: gameKey(numbers), numbers, targetContest, mode, strategy, score,
@@ -849,6 +942,7 @@ function renderDiaryChange() {
   if (state.daily) generateGames();
   else renderHistory();
   renderContestComparison();
+  refreshHistoricalSimulation();
 }
 
 function storeDiaryEntries(additions) {
@@ -882,13 +976,12 @@ function saveManualGame(event) {
     return;
   }
   const contest = $("#manualContest").valueAsNumber;
-  const digits = $("#manualNumbers").value.trim().split(/[\s,;-]+/);
-  const numbers = digits.map(Number).sort((a, b) => a - b);
+  const numbers = parseFifteenNumbers($("#manualNumbers").value);
   if (!Number.isSafeInteger(contest) || contest < 1 || contest > nextContest()) {
     showToast(`Informe um concurso entre 1 e ${nextContest()}.`);
     return;
   }
-  if (!digits.every((digit) => /^\d{1,2}$/.test(digit)) || !validNumbers(numbers, 15, 15)) {
+  if (!numbers) {
     showToast("Informe 15 dezenas diferentes entre 01 e 25.");
     return;
   }
@@ -1202,6 +1295,7 @@ function refreshAnalysis() {
   generateGames();
   renderForecastAudit();
   renderContestComparison();
+  refreshHistoricalSimulation();
 }
 
 async function init() {
@@ -1267,6 +1361,17 @@ $("#contestSearch").addEventListener("submit", (event) => {
 });
 $("#previousContest").addEventListener("click", () => openContestComparison(comparisonContest() - 1));
 $("#nextContestButton").addEventListener("click", () => openContestComparison(comparisonContest() + 1));
+$("#historicalSimulation").addEventListener("submit", startHistoricalSimulation);
+$("#simulationDiary").addEventListener("change", (event) => {
+  const entry = getPlayedGames().find((row) => diaryEntryKey(row) === event.currentTarget.value);
+  if (entry) $("#simulationNumbers").value = entry.numbers.map(formatNumber).join(" ");
+  resetHistoricalSimulation();
+});
+$("#simulationNumbers").addEventListener("input", () => {
+  $("#simulationDiary").value = "";
+  resetHistoricalSimulation();
+});
+$("#simulationScope").addEventListener("change", resetHistoricalSimulation);
 $("#retryLoading").addEventListener("click", init);
 $("#contestRetry").addEventListener("click", init);
 $("#installApp").addEventListener("click", installApp);
