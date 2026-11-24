@@ -2,6 +2,7 @@ import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyG
 import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=13";
 import { buildRatingProfile, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=13";
 import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
+import { compareContest } from "./contest-comparison.js?v=14";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -17,6 +18,7 @@ const state = {
   forecastAuditBase: null,
   historyLimit: 12,
   manualDefaultContest: null,
+  lastComparedContest: null,
   installPrompt: null,
 };
 
@@ -26,9 +28,10 @@ const tabs = [...document.querySelectorAll("[data-tab]")];
 const ratingProfiles = new Map();
 
 function renderScreen(focusHeading = false) {
-  const target = window.location.hash.slice(1);
+  const [target] = window.location.hash.slice(1).split("/");
   if (target === "conteudo") return;
   const screen = screens.find(({ id }) => id === target) ?? screens[0];
+  const screenChanged = screen.hidden;
   for (const item of screens) item.hidden = item !== screen;
   for (const tab of tabs) {
     if (tab.dataset.tab === screen.id) tab.setAttribute("aria-current", "page");
@@ -38,7 +41,8 @@ function renderScreen(focusHeading = false) {
     renderDailyBenchmark();
     renderForecastAudit();
   }
-  if (focusHeading) {
+  if (screen.id === "concursos") renderContestComparison(true);
+  if (focusHeading && screenChanged) {
     window.scrollTo(0, 0);
     screen.querySelector("h1").focus({ preventScroll: true });
   }
@@ -744,6 +748,95 @@ function nextContest() {
   return state.analysis.sorted[0].contest + 1;
 }
 
+function comparisonContest() {
+  if (window.location.hash === "#conteudo" && state.lastComparedContest) return state.lastComparedContest;
+  const [, selection] = window.location.hash.split("/");
+  const contest = Number(selection);
+  return Number.isSafeInteger(contest) && contest > 0 ? contest : nextContest() - 1;
+}
+
+function openContestComparison(contest) {
+  const hash = `#concursos/${contest}`;
+  if (window.location.hash === hash) renderContestComparison(true);
+  else window.location.hash = hash;
+}
+
+function renderContestComparison(updateInput = false) {
+  if (!state.analysis || $("#concursos").hidden) return;
+
+  const contest = comparisonContest();
+  const latest = nextContest() - 1;
+  const first = state.analysis.sorted[state.analysis.sorted.length - 1].contest;
+  const input = $("#comparisonContest");
+  input.disabled = false;
+  input.min = first;
+  input.max = latest + 1;
+  if (updateInput || !input.value || input.valueAsNumber === state.lastComparedContest) input.value = contest;
+  state.lastComparedContest = contest;
+
+  const inRange = contest >= first && contest <= latest + 1;
+  $("#contestSearchButton").disabled = false;
+  $("#previousContest").disabled = !inRange || contest <= first;
+  $("#nextContestButton").disabled = !inRange || contest >= latest + 1;
+  $("#contestRetry").hidden = true;
+  $("#contestComparison").hidden = !inRange;
+  $("#comparisonStatus").hidden = inRange;
+  if (!inRange) {
+    $("#comparisonStatus").textContent = `Escolha um concurso de ${first} a ${latest + 1}.`;
+    return;
+  }
+
+  const result = state.analysis.sorted.find((draw) => draw.contest === contest);
+  const { draw, plays } = compareContest(contest, result, getPlayedGames());
+  $("#drawDate").textContent = draw
+    ? `Concurso ${contest} · ${draw.date}`
+    : `Concurso ${contest} · Aguardando resultado na base`;
+
+  const drawn = new Set(draw?.numbers);
+  $("#drawBoard").innerHTML = draw ? `
+    <ol class="draw-board" role="list" aria-label="Volante do concurso ${contest}">
+      ${NUMBERS.map((number) => {
+        const selected = drawn.has(number);
+        return `<li class="draw-cell${selected ? " is-drawn" : ""}" aria-label="${formatNumber(number)}${selected ? ", sorteada" : ""}">${formatNumber(number)}</li>`;
+      }).join("")}
+    </ol>
+    <p class="helper">As dezenas em roxo saíram no sorteio.</p>
+  ` : "";
+
+  $("#contestPlays").innerHTML = plays.length
+    ? renderComparedPlays(plays, Boolean(draw))
+    : '<p class="empty-state">Nenhum jogo registrado para este concurso no seu Diário.</p>';
+}
+
+function renderComparedPlays(plays, hasResult) {
+  return `
+    ${hasResult ? '<p class="helper">O ✓ indica as dezenas que você acertou.</p>' : ""}
+    ${plays.map(({ entry, hits, missing }, index) => {
+      const matched = new Set(hits);
+      return `
+        <article class="compared-play">
+          <div class="section-heading">
+            <h3>Jogo ${index + 1} · ${entry.numbers.length} dezenas</h3>
+            <span class="result-count${hits?.length === DRAW_SIZE ? " is-full" : ""}">
+              ${hits ? `${hits.length} de ${DRAW_SIZE} acertos` : "Aguardando resultado"}
+            </span>
+          </div>
+          <div class="numbers" aria-label="Dezenas jogadas">
+            ${entry.numbers.map((number) => matched.has(number)
+              ? `<span class="mini-ball is-hit" aria-label="${formatNumber(number)}, acerto">${formatNumber(number)}&nbsp;✓</span>`
+              : `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}
+          </div>
+          ${missing?.length ? `
+            <details><summary>Sorteadas que ficaram de fora (${missing.length})</summary>
+              <div class="numbers">${missing.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
+            </details>
+          ` : ""}
+        </article>
+      `;
+    }).join("")}
+  `;
+}
+
 function diaryEntry(numbers, targetContest, mode, strategy, score = null) {
   return {
     key: gameKey(numbers), numbers, targetContest, mode, strategy, score,
@@ -755,6 +848,7 @@ function renderDiaryChange() {
   if (!state.analysis) return;
   if (state.daily) generateGames();
   else renderHistory();
+  renderContestComparison();
 }
 
 function storeDiaryEntries(additions) {
@@ -844,7 +938,7 @@ function renderHistory() {
     return `
       <article class="history-item">
         <div>
-          <strong>Concurso ${entry.targetContest}</strong>
+          <strong><a href="#concursos/${entry.targetContest}">Concurso ${entry.targetContest}</a></strong>
           <small>${formatUpdatedAt(entry.createdAt)} · ${diaryModeLabel(entry.mode)}</small>
         </div>
         <div class="numbers">${entry.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
@@ -1107,23 +1201,30 @@ function refreshAnalysis() {
   renderPairs();
   generateGames();
   renderForecastAudit();
+  renderContestComparison();
 }
 
 async function init() {
   const retry = $("#retryLoading");
+  const contestRetry = $("#contestRetry");
   retry.disabled = true;
+  contestRetry.disabled = true;
   try {
     await loadData();
     retry.hidden = true;
+    contestRetry.hidden = true;
   } catch (error) {
     if (!state.data) {
       $("#status").textContent = "Base indisponível";
       $("#gameContest").textContent = "Não consegui carregar o concurso";
+      $("#comparisonStatus").textContent = "Não consegui carregar a base de concursos";
       retry.hidden = false;
+      contestRetry.hidden = false;
       console.error(error);
     }
   } finally {
     retry.disabled = false;
+    contestRetry.disabled = false;
   }
 }
 
@@ -1159,7 +1260,15 @@ $("#showMoreHistory").addEventListener("click", () => {
 $("#clearHistory").addEventListener("click", clearHistory);
 $("#history").addEventListener("click", deletePlayedGame);
 $("#forceUpdate").addEventListener("click", forceUpdate);
+$("#contestSearch").addEventListener("submit", (event) => {
+  event.preventDefault();
+  const contest = $("#comparisonContest").valueAsNumber;
+  if (Number.isSafeInteger(contest) && contest > 0) openContestComparison(contest);
+});
+$("#previousContest").addEventListener("click", () => openContestComparison(comparisonContest() - 1));
+$("#nextContestButton").addEventListener("click", () => openContestComparison(comparisonContest() + 1));
 $("#retryLoading").addEventListener("click", init);
+$("#contestRetry").addEventListener("click", init);
 $("#installApp").addEventListener("click", installApp);
 window.addEventListener("online", init);
 window.addEventListener("hashchange", () => renderScreen(true));

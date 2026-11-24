@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=13">
+    <link rel="stylesheet" href="styles.css?v=14">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -22,6 +22,7 @@
         </a>
         <nav class="app-nav" aria-label="Telas do aplicativo">
           <a href="#jogo" data-tab="jogo" aria-current="page">Jogo do dia</a>
+          <a href="#concursos" data-tab="concursos">Conferir</a>
           <a href="#estatisticas" data-tab="estatisticas">Estatísticas</a>
           <a href="#diario" data-tab="diario">Diário</a>
           <a href="#ajustes" data-tab="ajustes">Ajustes</a>
@@ -81,6 +82,37 @@
             </table>
           </details>
         </details>
+      </section>
+
+      <section class="screen" id="concursos" data-screen aria-labelledby="comparisonHeading" hidden>
+        <div class="screen-heading">
+          <h1 id="comparisonHeading" tabindex="-1">Conferir concursos</h1>
+          <p class="helper">Busque um concurso para ver o resultado e comparar com os jogos que você registrou.</p>
+        </div>
+        <div class="panel contest-toolbar">
+          <form id="contestSearch" class="contest-search">
+            <label for="comparisonContest">Número do concurso</label>
+            <input id="comparisonContest" type="number" min="1" step="1" placeholder="Ex.: 3830" required disabled>
+            <button id="contestSearchButton" class="primary" type="submit" disabled>Buscar</button>
+          </form>
+          <div class="contest-nav" aria-label="Navegar entre concursos">
+            <button id="previousContest" class="ghost" type="button" disabled>Anterior</button>
+            <button id="nextContestButton" class="ghost" type="button" disabled>Próximo</button>
+          </div>
+        </div>
+        <p id="comparisonStatus" class="helper" role="status">Carregando base de concursos…</p>
+        <button id="contestRetry" class="ghost" type="button" hidden>Tentar novamente</button>
+        <div class="comparison-layout" id="contestComparison" hidden>
+          <section class="panel" aria-labelledby="drawHeading">
+            <h2 id="drawHeading">Dezenas sorteadas</h2>
+            <p id="drawDate" class="helper" role="status"></p>
+            <div id="drawBoard"></div>
+          </section>
+          <section class="panel" aria-labelledby="playedHeading">
+            <h2 id="playedHeading">Seus jogos</h2>
+            <div id="contestPlays" class="contest-plays"></div>
+          </section>
+        </div>
       </section>
 
       <section class="screen" id="estatisticas" data-screen aria-labelledby="statsHeading" hidden>
@@ -239,13 +271,16 @@
 
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=13").catch((error) => {
+      import("./app.js?v=14").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";
-        const retry = document.querySelector("#retryLoading");
-        retry.hidden = false;
-        retry.addEventListener("click", () => window.location.reload(), { once: true });
+        document.querySelector("#comparisonStatus").textContent = "Não consegui abrir a conferência";
+        for (const id of ["retryLoading", "contestRetry"]) {
+          const retry = document.getElementById(id);
+          retry.hidden = false;
+          retry.addEventListener("click", () => window.location.reload(), { once: true });
+        }
       });
     </script>
   </body>
