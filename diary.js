@@ -67,6 +67,8 @@ export function decodeDiary(text) {
       strategy: strategies.includes(entry.strategy) ? entry.strategy : "manual",
       score: Number.isFinite(entry.score) ? entry.score : null,
       cost: Number.isFinite(entry.cost) && entry.cost >= 0 ? entry.cost : null,
+      ...(Number.isSafeInteger(entry.spentCents) && entry.spentCents >= 0 ? { spentCents: entry.spentCents } : {}),
+      ...(Number.isSafeInteger(entry.prizeReceivedCents) && entry.prizeReceivedCents >= 0 ? { prizeReceivedCents: entry.prizeReceivedCents } : {}),
     };
   });
 }

@@ -1,9 +1,10 @@
 import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyGame } from "./daily-model.js?v=15";
-import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=13";
+import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=16";
 import { buildRatingProfile, MIN_DAILY_RATING, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=15";
 import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
 import { compareContest } from "./contest-comparison.js?v=14";
 import { simulateHistoricalGame } from "./contest-simulation.js?v=15";
+import { createDiaryReport } from "./report-screen.js?v=16";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -48,6 +49,7 @@ function renderScreen(focusHeading = false) {
     if (screenChanged) refreshHistoricalSimulation();
     if (focusHeading && !screenChanged) window.scrollTo(0, 0);
   }
+  refreshDiaryReport();
   if (focusHeading && screenChanged) {
     window.scrollTo(0, 0);
     screen.querySelector("h1").focus({ preventScroll: true });
@@ -938,6 +940,7 @@ function diaryEntry(numbers, targetContest, mode, strategy, score = null) {
 }
 
 function renderDiaryChange() {
+  refreshDiaryReport();
   if (!state.analysis) return;
   if (state.daily) generateGames();
   else renderHistory();
@@ -1071,14 +1074,16 @@ function renderHistoryStats(entries, byContest) {
     .map((entry) => ({ ...entry, hits: entryHits(entry, byContest) }))
     .filter((entry) => entry.hits !== null);
   const pending = entries.length - resolved.length;
-  const totalCost = entries.reduce((total, entry) => total + (entry.cost ?? estimatedGameCost(entry.numbers.length)), 0);
+  const totalCost = entries.reduce((total, entry) => total + (entry.spentCents != null
+    ? entry.spentCents / 100 : entry.cost ?? estimatedGameCost(entry.numbers.length)), 0);
+  const costLabel = entries.every((entry) => entry.spentCents != null) ? "gastos informados" : "gasto estimado";
   const bestHits = resolved.length ? Math.max(...resolved.map((entry) => entry.hits)) : "-";
   const avgHits = resolved.length ? formatPoints.format(average(resolved.map((entry) => entry.hits))) : "–";
   const prizeRange = resolved.filter((entry) => entry.hits >= 11).length;
 
   container.innerHTML = `
     <div><strong>${entries.length}</strong><small>jogos registrados</small></div>
-    <div><strong>R$ ${totalCost.toFixed(2).replace(".", ",")}</strong><small>gasto estimado</small></div>
+    <div><strong>${formatCurrency.format(totalCost)}</strong><small>${costLabel}</small></div>
     <div><strong>${bestHits}</strong><small>melhor acerto</small></div>
     <div><strong>${avgHits}</strong><small>média de acertos</small></div>
     <div><strong>${pending}</strong><small>aguardando resultado</small></div>
@@ -1296,6 +1301,7 @@ function refreshAnalysis() {
   renderForecastAudit();
   renderContestComparison();
   refreshHistoricalSimulation();
+  refreshDiaryReport();
 }
 
 async function init() {
@@ -1378,6 +1384,11 @@ $("#installApp").addEventListener("click", installApp);
 window.addEventListener("online", init);
 window.addEventListener("hashchange", () => renderScreen(true));
 
+const refreshDiaryReport = createDiaryReport({
+  getDraws: () => state.analysis?.sorted ?? [],
+  onDiaryChanged: renderDiaryChange,
+  notify: showToast,
+});
 renderScreen();
 renderRatingLegends();
 renderChanceCalculator();

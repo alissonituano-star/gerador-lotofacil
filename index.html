@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=15">
+    <link rel="stylesheet" href="styles.css?v=16">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -25,6 +25,7 @@
           <a href="#concursos" data-tab="concursos">Conferir</a>
           <a href="#estatisticas" data-tab="estatisticas">Estatísticas</a>
           <a href="#diario" data-tab="diario">Diário</a>
+          <a href="#relatorio" data-tab="relatorio">Relatório</a>
           <a href="#ajustes" data-tab="ajustes">Ajustes</a>
         </nav>
         <span id="status" class="data-status" role="status">Carregando base</span>
@@ -234,6 +235,85 @@
         </section>
       </section>
 
+      <section class="screen" id="relatorio" data-screen aria-labelledby="reportHeading" hidden>
+        <div class="screen-heading">
+          <h1 id="reportHeading" tabindex="-1">Relatório</h1>
+          <p class="helper">Acompanhe o que gastou, seus acertos e o saldo dos jogos registrados no Diário.</p>
+        </div>
+        <section class="panel" aria-labelledby="reportPeriodHeading">
+          <h2 id="reportPeriodHeading">Período</h2>
+          <div class="report-filters">
+            <label>Ver por
+              <select id="reportPeriod">
+                <option value="week">Semana</option>
+                <option value="month" selected>Mês</option>
+                <option value="year">Ano</option>
+              </select>
+            </label>
+            <label>Data de referência
+              <input id="reportDate" type="date" required>
+            </label>
+            <div class="report-period-nav" aria-label="Navegar entre períodos">
+              <button class="ghost" id="reportPrevious" type="button">Anterior</button>
+              <button class="ghost" id="reportCurrent" type="button">Atual</button>
+              <button class="ghost" id="reportNext" type="button">Próximo</button>
+            </div>
+          </div>
+          <p class="helper" id="reportRange" role="status"></p>
+        </section>
+
+        <section class="panel" aria-labelledby="reportTotalsHeading">
+          <div class="section-heading">
+            <h2 id="reportTotalsHeading">Resumo financeiro</h2>
+            <button class="ghost" id="reportRetry" type="button" hidden>Consultar prêmios novamente</button>
+          </div>
+          <div class="metrics" id="reportTotals"></div>
+          <p class="helper" id="reportNote" role="status"></p>
+        </section>
+
+        <div class="report-charts" id="reportCharts" hidden>
+          <section class="panel" aria-labelledby="reportCashHeading">
+            <h2 id="reportCashHeading">Gastos e prêmios</h2>
+            <div class="report-chart-key">
+              <span><i class="report-spent" aria-hidden="true"></i>Gastos</span>
+              <span><i class="report-prize" aria-hidden="true"></i>Prêmios apurados</span>
+            </div>
+            <div class="report-chart-wrap" tabindex="0" aria-label="Gráfico de gastos e prêmios">
+              <div class="report-chart" id="reportCashChart"></div>
+            </div>
+            <details>
+              <summary>Ver valores do gráfico</summary>
+              <table class="comparison-table">
+                <thead><tr><th scope="col">Intervalo</th><th scope="col">Gastos</th><th scope="col">Prêmios</th></tr></thead>
+                <tbody id="reportCashTable"></tbody>
+              </table>
+            </details>
+          </section>
+          <section class="panel" aria-labelledby="reportBalanceHeading">
+            <h2 id="reportBalanceHeading">Saldo acumulado no período</h2>
+            <div class="balance-chart" id="reportBalanceChart"></div>
+          </section>
+        </div>
+
+        <section class="panel" aria-labelledby="reportHitsHeading">
+          <h2 id="reportHitsHeading">Acertos por faixa</h2>
+          <p class="helper">Cada jogo com resultado conta pela sua quantidade exata de acertos.</p>
+          <div class="metrics" id="reportHits"></div>
+        </section>
+
+        <section class="panel" id="reportEntriesPanel" aria-labelledby="reportEntriesHeading" hidden>
+          <h2 id="reportEntriesHeading">Valores por jogo</h2>
+          <p class="helper">Edite um registro para informar quanto pagou ou o prêmio que recebeu.</p>
+          <div class="report-table-wrap" tabindex="0" aria-label="Tabela de valores por jogo">
+            <table class="comparison-table">
+              <thead><tr><th scope="col">Concurso</th><th scope="col">Acertos</th><th scope="col">Gasto</th><th scope="col">Prêmio</th><th scope="col">Ação</th></tr></thead>
+              <tbody id="reportRows"></tbody>
+            </table>
+          </div>
+          <button class="ghost more-button" id="reportMore" type="button" hidden>Mostrar mais jogos</button>
+        </section>
+      </section>
+
       <section class="screen" id="ajustes" data-screen aria-labelledby="settingsHeading" hidden>
         <div class="screen-heading">
           <h1 id="settingsHeading" tabindex="-1">Ajustes</h1>
@@ -299,9 +379,27 @@
       </section>
     </main>
 
+    <dialog id="reportEditor" class="report-editor" aria-labelledby="reportEditorHeading">
+      <form id="reportEditorForm" class="report-editor-form">
+        <h2 id="reportEditorHeading">Editar valores do jogo</h2>
+        <p class="helper" id="reportEditorGame"></p>
+        <label>Valor pago em R$
+          <input id="reportSpent" type="number" min="0" step="0.01" max="1000000000">
+        </label>
+        <label>Prêmio recebido em R$
+          <input id="reportPrize" type="number" min="0" step="0.01" max="1000000000">
+        </label>
+        <p class="helper">Campos vazios usam os valores disponíveis no app. Digite 0 para confirmar que o valor foi zero.</p>
+        <p id="reportEditorStatus" class="helper" role="status"></p>
+        <div class="report-editor-actions">
+          <button class="ghost" id="reportEditorCancel" type="button">Cancelar</button>
+          <button class="primary" type="submit">Salvar valores</button>
+        </div>
+      </form>
+    </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=15").catch((error) => {
+      import("./app.js?v=16").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";

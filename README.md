@@ -104,6 +104,7 @@ Ele executa `npm run sync`, que baixa os resultados pelo seu computador, cria co
 - Diário local de jogos, com registro manual, conferência automática de acertos e exportação e importação de backup JSON.
 - Aba `Conferir`, com resultado por concurso, comparação com os jogos do Diário e resumo de paridade, soma, dezenas de 01 a 13 e repetição do sorteio anterior.
 - Simulação de combinações de 15 dezenas no histórico completo ou nos concursos registrados no Diário, com contagem por faixa de 11 a 15 acertos.
+- Aba `Relatório`, com filtros por semana, mês e ano, gráficos de gastos, prêmios e saldo, acertos por faixa e valores por jogo. Usa o rateio da Caixa nos jogos premiados e permite registrar o valor efetivamente pago e recebido.
 
 ## Estrategia recomendada
 
