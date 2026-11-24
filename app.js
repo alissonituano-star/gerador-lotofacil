@@ -1,6 +1,7 @@
-import { createDailyGame, testDailyGame } from "./daily-model.js?v=12";
-import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=12";
-import { buildRatingProfile, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=12";
+import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyGame } from "./daily-model.js?v=13";
+import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=13";
+import { buildRatingProfile, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=13";
+import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -13,6 +14,7 @@ const state = {
   games: [],
   daily: null,
   benchmarkBase: null,
+  forecastAuditBase: null,
   historyLimit: 12,
   manualDefaultContest: null,
   installPrompt: null,
@@ -32,7 +34,10 @@ function renderScreen(focusHeading = false) {
     if (tab.dataset.tab === screen.id) tab.setAttribute("aria-current", "page");
     else tab.removeAttribute("aria-current");
   }
-  if (screen.id === "estatisticas") renderDailyBenchmark();
+  if (screen.id === "estatisticas") {
+    renderDailyBenchmark();
+    renderForecastAudit();
+  }
   if (focusHeading) {
     window.scrollTo(0, 0);
     screen.querySelector("h1").focus({ preventScroll: true });
@@ -81,16 +86,8 @@ function combinations(items, size) {
   return output;
 }
 
-function combinationCount(n, k) {
-  let result = 1;
-  for (let index = 1; index <= k; index += 1) {
-    result = result * (n - index + 1) / index;
-  }
-  return Math.round(result);
-}
-
 function estimatedGameCost(size) {
-  return combinationCount(size, 15) * 3.5;
+  return combinationCount(size, DRAW_SIZE) * SIMPLE_GAME_CENTS / 100;
 }
 
 function intersectionCount(a, b) {
@@ -468,7 +465,62 @@ function renderPairs() {
 
 const formatPercent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 2 });
 const formatSmallPercent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 4 });
+const formatChancePercent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 8 });
 const formatPoints = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+const formatInteger = new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 0 });
+const formatCurrency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+
+function formatOdds(probability) {
+  if (probability === 0 || probability === 1) return formatPercent.format(probability);
+  const inverse = 1 / probability;
+  if (Number.isInteger(inverse)) return `1 em ${formatInteger.format(inverse)}`;
+  return `≈ 1 em ${(inverse < 100 ? formatPoints : formatInteger).format(inverse)}`;
+}
+
+function renderChanceCalculator() {
+  const budgetCents = Math.round($("#chanceBudget").valueAsNumber * 100);
+  const contests = $("#chanceContests").valueAsNumber;
+  const result = $("#chanceResults");
+  if (!Number.isSafeInteger(budgetCents) || budgetCents < 0
+      || !Number.isInteger(contests) || contests < 1 || contests > 10000) {
+    result.textContent = "Informe um orçamento válido e de 1 a 10.000 concursos.";
+    return;
+  }
+  const coverage = coverageForBudget(budgetCents, contests);
+  result.innerHTML = `
+    <div><strong>${formatInteger.format(coverage.combinations)}</strong><small>Combinações por concurso</small></div>
+    <div><strong>${formatCurrency.format(coverage.totalCents / 100)}</strong><small>Gasto total simulado</small></div>
+    <div><strong>${formatOdds(coverage.perContest)}</strong><small>Chance em um concurso</small></div>
+    ${contests > 1 ? `<div><strong>${formatChancePercent.format(coverage.overall)}</strong><small>Chance de pelo menos um 15 nos ${formatInteger.format(contests)} concursos</small></div>` : ""}
+  `;
+}
+
+function renderChanceFormats() {
+  $("#chanceFormats").innerHTML = Array.from({ length: 6 }, (_, index) => {
+    const size = DRAW_SIZE + index;
+    const count = combinationCount(size, DRAW_SIZE);
+    return `<tr><th scope="row">${size}</th><td>${formatInteger.format(count)}</td>
+      <td>${formatCurrency.format(count * SIMPLE_GAME_CENTS / 100)}</td>
+      <td>${formatOdds(count / POSSIBLE_GAMES)}</td></tr>`;
+  }).join("");
+}
+
+function renderForecastAudit() {
+  if (!state.analysis || $("#estatisticas").hidden || !$("#forecastAudit").open || state.forecastAuditBase === state.data) return;
+  const { historical, forward } = auditDailyForecast(state.analysis.sorted);
+  state.forecastAuditBase = state.data;
+  const historicalText = historical?.sampleSize
+    ? `Nos ${historical.sampleSize} concursos testados (${historical.firstContest} a ${historical.lastContest}), o modelo atribuiu, em média geométrica, <strong>${formatPercent.format(Math.abs(historical.ratio - 1))} ${historical.ratio >= 1 ? "mais" : "menos"}</strong> probabilidade aos conjuntos sorteados do que a referência uniforme.`
+    : "A base é pequena demais para esta avaliação histórica.";
+  const status = forward.supported
+    ? "O teste prospectivo atingiu o limiar e o modelo passou a orientar a seleção."
+    : "A seleção continua usando os critérios de equilíbrio e o diário enquanto o sinal é avaliado.";
+  $("#forecastAuditResult").innerHTML = `
+    <p class="helper">O teste avalia a previsão do conjunto completo de 15 dezenas. Para cada concurso, o modelo usa só os resultados anteriores.</p>
+    <p class="helper">${historicalText}</p>
+    <p class="helper">Acompanhamento prospectivo a partir do concurso ${FORECAST_START_CONTEST} · ${forward.sampleSize} resultados avaliados. ${status}</p>
+  `;
+}
 
 function ratingFor(numbers, contest) {
   if (!ratingProfiles.has(contest)) {
@@ -512,6 +564,7 @@ function renderDailyGame(game) {
   `;
   $("#insightsHeading").textContent = game.registered ? "Leitura do jogo registrado" : "Leitura da sugestão";
   $("#dailyInsights").innerHTML = `
+    ${game.forecastEnabled && !game.registered ? '<p class="helper">Seleção orientada pelo modelo prospectivo.</p>' : ""}
     <dl class="insights-list">
       <div><dt>Em comum com o último sorteio</dt><dd>${game.drawnRepeat} dezenas</dd></div>
       <div><dt>Média histórica entre sorteios consecutivos</dt><dd>${formatPoints.format(game.averageRepeat)} dezenas</dd></div>
@@ -1053,6 +1106,7 @@ function refreshAnalysis() {
   renderRanking();
   renderPairs();
   generateGames();
+  renderForecastAudit();
 }
 
 async function init() {
@@ -1082,12 +1136,19 @@ $("#strategy").addEventListener("change", generateGames);
 $("#gameSize").addEventListener("change", generateGames);
 $("#generationMode").addEventListener("change", generateGames);
 $("#lastRepeatRange").addEventListener("change", generateGames);
-$("#dailyBudget").addEventListener("change", updateStrategyNote);
+$("#dailyBudget").addEventListener("change", (event) => {
+  updateStrategyNote();
+  $("#chanceBudget").value = event.currentTarget.value;
+  renderChanceCalculator();
+});
+$("#chanceBudget").addEventListener("input", renderChanceCalculator);
+$("#chanceContests").addEventListener("input", renderChanceCalculator);
 $("#downloadCsv").addEventListener("click", downloadCsv);
 $("#copyGames").addEventListener("click", copyGames);
 $("#savePlayed").addEventListener("click", savePlayedGames);
 $("#manualGame").addEventListener("submit", saveManualGame);
 $("#dailyBenchmark").addEventListener("toggle", renderDailyBenchmark);
+$("#forecastAudit").addEventListener("toggle", renderForecastAudit);
 $("#exportDiary").addEventListener("click", exportDiary);
 $("#importDiary").addEventListener("click", () => $("#diaryFile").click());
 $("#diaryFile").addEventListener("change", importDiary);
@@ -1105,6 +1166,8 @@ window.addEventListener("hashchange", () => renderScreen(true));
 
 renderScreen();
 renderRatingLegends();
+renderChanceCalculator();
+renderChanceFormats();
 setupPwa();
 init();
 setInterval(init, DATA_REFRESH_INTERVAL);

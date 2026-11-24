@@ -96,6 +96,8 @@ Ele executa `npm run sync`, que baixa os resultados pelo seu computador, cria co
 - Backtest simples, comparando jogos sugeridos contra sorteios passados.
 - Modo `1 jogo do dia`, com uma recomendação de 15 dezenas por concurso. Compara as janelas de 30 e 120 concursos com o histórico completo, ajusta a coocorrência de pares e usa os últimos 12 jogos registrados para variar as dezenas.
 - Simulação do jogo do dia em até 120 concursos, usando apenas dados anteriores a cada sorteio e comparando os acertos com as probabilidades exatas de uma combinação aleatória.
+- Calculadora de 15 acertos para combinações distintas por concurso, com custo simulado e chance acumulada em sorteios independentes.
+- Avaliação da probabilidade atribuída ao resultado completo. O modelo de frequências só orienta a recomendação quando a razão de verossimilhanças contra a distribuição uniforme atinge 20 nos sorteios acompanhados a partir do concurso 3836. A simulação histórica é informativa e fica fora dessa decisão.
 - Modo `Diversificar jogos`, reduzindo repeticao entre apostas.
 - Modo `Base 20 amarrada`, criando jogos dentro de uma base forte de 20 dezenas.
 - Filtro anti-jogo-fraco para soma, paridade, altos/baixos, sequencias e concentracao.

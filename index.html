@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=12">
+    <link rel="stylesheet" href="styles.css?v=13">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -60,6 +60,27 @@
             <p class="subtle-rule" id="fairChance">Uma aposta simples tem 1 chance em 3.268.760 de fazer 15 pontos.</p>
           </aside>
         </div>
+        <details class="panel chance-panel">
+          <summary>Calculadora de 15 acertos</summary>
+          <p class="helper">Veja quantas combinações seu orçamento cobre e a chance de acertar as 15 dezenas.</p>
+          <div class="control-grid">
+            <label>Orçamento por concurso em R$
+              <input id="chanceBudget" type="number" min="0" step="0.01" value="3.50">
+            </label>
+            <label>Concursos na simulação
+              <input id="chanceContests" type="number" min="1" max="10000" step="1" value="1">
+            </label>
+          </div>
+          <div id="chanceResults" class="metrics" aria-live="polite"></div>
+          <p class="helper">A simulação considera combinações distintas dentro de cada concurso e sorteios independentes. <a href="https://loterias.caixa.gov.br/Paginas/Lotofacil.aspx#probabilidade">Probabilidades e preços da Caixa</a></p>
+          <details>
+            <summary>Comparar apostas de 15 a 20 dezenas</summary>
+            <table class="comparison-table">
+              <thead><tr><th scope="col">Dezenas</th><th scope="col">Combinações</th><th scope="col">Custo</th><th scope="col">Chance de 15</th></tr></thead>
+              <tbody id="chanceFormats"></tbody>
+            </table>
+          </details>
+        </details>
       </section>
 
       <section class="screen" id="estatisticas" data-screen aria-labelledby="statsHeading" hidden>
@@ -82,9 +103,13 @@
         </section>
         <section class="panel" aria-labelledby="benchmarkHeading">
           <h2 id="benchmarkHeading">Simulação histórica</h2>
+          <details id="forecastAudit">
+            <summary>O histórico melhora a previsão das 15 dezenas?</summary>
+            <div id="forecastAuditResult"></div>
+          </details>
           <p class="helper" id="legacyBacktestNote" hidden>Acertos dos jogos atuais nos últimos concursos.</p>
           <details id="dailyBenchmark">
-            <summary>Ver o desempenho do jogo do dia</summary>
+            <summary>Ver os acertos da seleção por critérios</summary>
             <div id="dailyBenchmarkResult"></div>
           </details>
           <div id="backtest" class="backtest" hidden></div>
@@ -214,7 +239,7 @@
 
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=12").catch((error) => {
+      import("./app.js?v=13").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";

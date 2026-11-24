@@ -1,9 +1,11 @@
-const TOTAL_NUMBERS = 25;
-const GAME_SIZE = 15;
+import { combinationCount, DRAW_SIZE as GAME_SIZE, fixedSizeLogNormalizer, POSSIBLE_GAMES, TOTAL_NUMBERS } from "./lottery-math.js?v=13";
+
 const SHORT_WINDOW = 30;
 const RECENT_WINDOW = 120;
 const DIARY_WINDOW = 12;
 const CANDIDATE_COUNT = 160;
+export const FORECAST_START_CONTEST = 3836;
+const FORECAST_EVIDENCE_THRESHOLD = Math.log(20);
 const FAIR_FREQUENCY = GAME_SIZE / TOTAL_NUMBERS;
 const PAIR_COUNT = GAME_SIZE * (GAME_SIZE - 1) / 2;
 const PAIR_CORRECTION = (GAME_SIZE - 1) / GAME_SIZE * TOTAL_NUMBERS / (TOTAL_NUMBERS - 1);
@@ -91,7 +93,11 @@ function sampleNumbers(random) {
   return numbers.slice(0, GAME_SIZE).sort((a, b) => a - b);
 }
 
-function selectGame(model, contest, diary) {
+function forecastWeight(numbers, weights) {
+  return numbers.reduce((total, number) => total + weights[number - 1], 0);
+}
+
+function selectGame(model, contest, diary, forecast = null) {
   const previous = diary.filter((entry) => entry.targetContest < contest)
     .sort((a, b) => b.targetContest - a.targetContest || Date.parse(b.createdAt) - Date.parse(a.createdAt));
   const recent = previous.slice(0, DIARY_WINDOW);
@@ -104,9 +110,28 @@ function selectGame(model, contest, diary) {
   const lastPlayed = new Set(recent[0]?.numbers);
   const random = contestRandom(contest);
   let best;
+  if (forecast) {
+    const ranked = [...NUMBERS].sort((first, second) => forecast[second - 1] - forecast[first - 1]);
+    const top = ranked.slice(0, GAME_SIZE).sort((a, b) => a - b);
+    if (!used.has(top.join(","))) return { numbers: top, previousCount: recent.length, lastPlayed };
+    // If the most likely set was already played, compare all one-number swaps and the sampled alternatives.
+    for (const replacement of ranked.slice(GAME_SIZE)) {
+      for (const number of top) {
+        const numbers = top.map((value) => value === number ? replacement : value).sort((a, b) => a - b);
+        if (used.has(numbers.join(","))) continue;
+        const score = forecastWeight(numbers, forecast);
+        if (!best || score > best.score) best = { numbers, score };
+      }
+    }
+  }
   for (let attempt = 0; attempt < CANDIDATE_COUNT; attempt += 1) {
     const numbers = sampleNumbers(random);
     if (used.has(numbers.join(","))) continue;
+    if (forecast) {
+      const score = forecastWeight(numbers, forecast);
+      if (!best || score > best.score) best = { numbers, score };
+      continue;
+    }
     let total = 0;
     let pairTotal = 0;
     let drawnRepeat = 0;
@@ -137,10 +162,12 @@ export function createDailyGame(draws, diary) {
   const contest = draws[0].contest + 1;
   const model = buildModel(draws, 0, summarizeDraws(draws));
   const registered = diary.find((entry) => entry.targetContest === contest && entry.numbers.length === GAME_SIZE);
-  const { numbers: suggested, previousCount, lastPlayed } = selectGame(model, contest, diary);
+  const forecastEnabled = forwardForecastTest(draws).supported;
+  const forecast = forecastEnabled ? forecastLogWeights(model) : null;
+  const { numbers: suggested, previousCount, lastPlayed } = selectGame(model, contest, diary, forecast);
   const numbers = registered?.numbers ?? suggested;
   return {
-    contest, registered: Boolean(registered), numbers, previousCount,
+    contest, registered: Boolean(registered), numbers, previousCount, forecastEnabled,
     recentDraws: model.recentCount,
     shortDraws: model.shortCount,
     historicalDraws: model.count,
@@ -159,19 +186,55 @@ function recentOverlap(numbers, played) {
   return played.size ? numbers.filter((number) => played.has(number)).length : null;
 }
 
-function choose(n, k) {
-  if (k < 0 || k > n) return 0;
-  let result = 1;
-  for (let index = 1; index <= k; index += 1) result = result * (n - index + 1) / index;
-  return Math.round(result);
+function forecastLogWeights(model) {
+  return NUMBERS.map((number) => {
+    const probability = Math.min(0.99, Math.max(0.01, FAIR_FREQUENCY + model.signal[number]));
+    return Math.log(probability / (1 - probability));
+  });
 }
 
-const POSSIBLE_GAMES = choose(TOTAL_NUMBERS, GAME_SIZE);
+function evaluateForecast(draws, start, count) {
+  const sampleSize = Math.max(0, Math.min(count, draws.length - start - RECENT_WINDOW));
+  if (!sampleSize) return { sampleSize: 0, logEvidence: 0, ratio: 1 };
+
+  const end = start + sampleSize;
+  const totals = summarizeDraws(draws, end);
+  const uniformLogProbability = -Math.log(POSSIBLE_GAMES);
+  let logEvidence = 0;
+  for (let index = end - 1; index >= start; index -= 1) {
+    const weights = forecastLogWeights(buildModel(draws, index + 1, totals));
+    const logProbability = forecastWeight(draws[index].numbers, weights) - fixedSizeLogNormalizer(weights, GAME_SIZE);
+    logEvidence += logProbability - uniformLogProbability;
+    addDraw(totals, draws[index].numbers, draws[index + 1]?.numbers);
+  }
+  return {
+    sampleSize, logEvidence, ratio: Math.exp(logEvidence / sampleSize),
+    firstContest: draws[end - 1].contest, lastContest: draws[start].contest,
+  };
+}
+
+const forwardTests = new WeakMap();
+
+function forwardForecastTest(draws) {
+  if (forwardTests.has(draws)) return forwardTests.get(draws);
+  const start = draws.findIndex((draw) => draw.contest < FORECAST_START_CONTEST);
+  const test = evaluateForecast(draws, 0, start < 0 ? draws.length : start);
+  // The product of likelihood ratios is tracked only on draws after the fixed launch cutoff.
+  const result = { ...test, supported: test.logEvidence >= FORECAST_EVIDENCE_THRESHOLD };
+  forwardTests.set(draws, result);
+  return result;
+}
+
+export function auditDailyForecast(draws) {
+  const start = draws.findIndex((draw) => draw.contest < FORECAST_START_CONTEST);
+  const historical = start < 0 ? null : evaluateForecast(draws, start, 240);
+  return { historical, forward: forwardForecastTest(draws) };
+}
 
 export function fairHitProbability(minimum) {
   let total = 0;
   for (let hits = minimum; hits <= GAME_SIZE; hits += 1) {
-    total += choose(GAME_SIZE, hits) * choose(TOTAL_NUMBERS - GAME_SIZE, GAME_SIZE - hits);
+    total += combinationCount(GAME_SIZE, hits) * combinationCount(TOTAL_NUMBERS - GAME_SIZE, GAME_SIZE - hits);
   }
   return total / POSSIBLE_GAMES;
 }

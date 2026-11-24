@@ -338,6 +338,9 @@ details summary {
 .rating-breakdown li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .2rem .65rem; }
 .ticket-legend { border-color: #ffffff30; }
 .ticket-legend summary, .ticket-legend .helper { color: #ded4f1; }
+.chance-panel { margin-top: 0; }
+.chance-panel > summary { font-size: 1rem; }
+.chance-panel .comparison-table { overflow-wrap: anywhere; }
 
 .control-grid, .manual-form {
   display: grid;
