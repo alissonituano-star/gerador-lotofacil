@@ -1,10 +1,32 @@
 {
-  "source": "https://lotorama.com.br/lotofacil/todos-os-resultados/",
-  "updated_at": "2026-11-23T23:10:12.369Z",
-  "total_contests": 3835,
-  "latest_contest": 3835,
+  "source": "https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil",
+  "updated_at": "2026-11-24T07:06:36.025Z",
+  "total_contests": 3836,
+  "latest_contest": 3836,
   "oldest_contest": 1,
   "results": [
+    {
+      "contest": 3836,
+      "weekday": "Segunda-feira",
+      "date": "23/11/2026",
+      "numbers": [
+        2,
+        3,
+        5,
+        7,
+        9,
+        12,
+        15,
+        16,
+        17,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24
+      ]
+    },
     {
       "contest": 3835,
       "weekday": "Domingo",
