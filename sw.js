@@ -1,13 +1,13 @@
 const CACHE_PREFIX = "gerador-lotofacil-";
-const CACHE_NAME = `${CACHE_PREFIX}v11`;
+const CACHE_NAME = `${CACHE_PREFIX}v12`;
 const APP_FILES = [
   "./",
   "./index.html",
-  "./styles.css?v=11",
-  "./app.js?v=11",
-  "./daily-model.js",
-  "./diary.js",
-  "./game-rating.js",
+  "./styles.css?v=12",
+  "./app.js?v=12",
+  "./daily-model.js?v=12",
+  "./diary.js?v=12",
+  "./game-rating.js?v=12",
   "./manifest.webmanifest",
   "./data/lotofacil.json",
   "./assets/icon.svg?v=10",
@@ -17,7 +17,7 @@ const APP_FILES = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES)),
+    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_FILES.map((url) => new Request(url, { cache: "reload" })))),
   );
   self.skipWaiting();
 });

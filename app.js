@@ -1,9 +1,10 @@
-import { createDailyGame, testDailyGame } from "./daily-model.js";
-import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js";
-import { buildRatingProfile, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js";
+import { createDailyGame, testDailyGame } from "./daily-model.js?v=12";
+import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=12";
+import { buildRatingProfile, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=12";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
+const DATA_LOAD_TIMEOUT = 12_000;
 const HISTORICAL_SIMILARITY_WINDOW = 500;
 const BACKTEST_RECENT_WINDOW = 120;
 const state = {
@@ -439,7 +440,7 @@ function renderSummary() {
   $("#metricContests").textContent = data.total_contests || results.length;
   $("#metricLatest").textContent = data.latest_contest || results[0].contest;
   $("#metricAvgSum").textContent = Math.round(state.analysis.avgSum);
-  $("#metricRange").textContent = `${results.at(-1).date} a ${results[0].date}`;
+  $("#metricRange").textContent = `${results[results.length - 1].date} a ${results[0].date}`;
   $("#metricUpdated").textContent = `Última atualização da base em ${formatUpdatedAt(data.updated_at)}`;
   $("#status").textContent = `Base até ${results[0].contest}`;
 }
@@ -917,14 +918,39 @@ async function copyGames() {
   }
 }
 
-async function loadData() {
-  const response = await fetch("data/lotofacil.json", { cache: "no-cache" });
-  if (!response.ok) throw new Error("Base indisponível");
-  const data = await response.json();
-  if (state.data && data.updated_at <= state.data.updated_at) return;
-  state.data = data;
-  ratingProfiles.clear();
-  refreshAnalysis();
+let pendingLoad;
+
+function loadData() {
+  pendingLoad ??= readPublishedData().finally(() => {
+    pendingLoad = undefined;
+  });
+  return pendingLoad;
+}
+
+async function readPublishedData() {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), DATA_LOAD_TIMEOUT);
+  try {
+    const response = await fetch("data/lotofacil.json", { cache: "no-cache", signal: controller.signal });
+    if (!response.ok) throw new Error("Base indisponível");
+    const data = await response.json();
+    if (!data?.results?.length || !data.updated_at) throw new Error("Base de concursos inválida");
+    const previous = state.data;
+    if (previous && data.updated_at <= previous.updated_at) return;
+    const previousAnalysis = state.analysis;
+    state.data = data;
+    ratingProfiles.clear();
+    try {
+      refreshAnalysis();
+    } catch (error) {
+      state.data = previous;
+      state.analysis = previousAnalysis;
+      throw error;
+    }
+    $("#retryLoading").hidden = true;
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function forceUpdate() {
@@ -1030,10 +1056,20 @@ function refreshAnalysis() {
 }
 
 async function init() {
+  const retry = $("#retryLoading");
+  retry.disabled = true;
   try {
     await loadData();
+    retry.hidden = true;
   } catch (error) {
-    if (!state.data) $("#status").textContent = error.message;
+    if (!state.data) {
+      $("#status").textContent = "Base indisponível";
+      $("#gameContest").textContent = "Não consegui carregar o concurso";
+      retry.hidden = false;
+      console.error(error);
+    }
+  } finally {
+    retry.disabled = false;
   }
 }
 
@@ -1062,7 +1098,9 @@ $("#showMoreHistory").addEventListener("click", () => {
 $("#clearHistory").addEventListener("click", clearHistory);
 $("#history").addEventListener("click", deletePlayedGame);
 $("#forceUpdate").addEventListener("click", forceUpdate);
+$("#retryLoading").addEventListener("click", init);
 $("#installApp").addEventListener("click", installApp);
+window.addEventListener("online", init);
 window.addEventListener("hashchange", () => renderScreen(true));
 
 renderScreen();

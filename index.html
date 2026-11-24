@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=11">
+    <link rel="stylesheet" href="styles.css?v=12">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -43,6 +43,7 @@
             <div class="ticket-actions">
               <button class="primary" id="savePlayed" disabled>Registrar jogo</button>
               <button class="ghost" id="copyGames" disabled>Copiar dezenas</button>
+              <button class="ghost" id="retryLoading" hidden>Tentar novamente</button>
             </div>
             <details class="ticket-legend">
               <summary>Legenda das notas</summary>
@@ -212,6 +213,15 @@
     </main>
 
     <div class="toast" id="toast" role="status" hidden></div>
-    <script type="module" src="app.js?v=11"></script>
+    <script type="module">
+      import("./app.js?v=12").catch((error) => {
+        console.error(error);
+        document.querySelector("#status").textContent = "Falha ao abrir";
+        document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";
+        const retry = document.querySelector("#retryLoading");
+        retry.hidden = false;
+        retry.addEventListener("click", () => window.location.reload(), { once: true });
+      });
+    </script>
   </body>
 </html>
