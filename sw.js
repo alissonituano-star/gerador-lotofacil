@@ -1,12 +1,13 @@
 const CACHE_PREFIX = "gerador-lotofacil-";
-const CACHE_NAME = `${CACHE_PREFIX}v10`;
+const CACHE_NAME = `${CACHE_PREFIX}v11`;
 const APP_FILES = [
   "./",
   "./index.html",
-  "./styles.css?v=10",
-  "./app.js?v=10",
+  "./styles.css?v=11",
+  "./app.js?v=11",
   "./daily-model.js",
   "./diary.js",
+  "./game-rating.js",
   "./manifest.webmanifest",
   "./data/lotofacil.json",
   "./assets/icon.svg?v=10",
@@ -33,7 +34,9 @@ self.addEventListener("activate", (event) => {
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
 
-  const networkResponse = fetch(event.request);
+  const networkResponse = event.request.mode === "navigate"
+    ? fetch(event.request, { cache: "no-cache" })
+    : fetch(event.request);
   event.waitUntil(networkResponse.then((response) => {
     if (!response.ok) return;
     const copy = response.clone();

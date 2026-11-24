@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=10">
+    <link rel="stylesheet" href="styles.css?v=11">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -44,6 +44,10 @@
               <button class="primary" id="savePlayed" disabled>Registrar jogo</button>
               <button class="ghost" id="copyGames" disabled>Copiar dezenas</button>
             </div>
+            <details class="ticket-legend">
+              <summary>Legenda das notas</summary>
+              <div data-rating-legend></div>
+            </details>
           </section>
           <aside class="panel game-insights" id="gameInsights" aria-labelledby="insightsHeading">
             <h2 id="insightsHeading">Leitura da sugestão</h2>
@@ -116,6 +120,10 @@
             <button class="ghost" id="exportDiary">Salvar backup</button>
           </div>
           <div id="historyStats" class="history-stats"></div>
+          <details>
+            <summary>Legenda das notas</summary>
+            <div data-rating-legend></div>
+          </details>
           <details>
             <summary>Registrar dezenas manualmente</summary>
             <form id="manualGame" class="manual-form">
@@ -204,6 +212,6 @@
     </main>
 
     <div class="toast" id="toast" role="status" hidden></div>
-    <script type="module" src="app.js?v=10"></script>
+    <script type="module" src="app.js?v=11"></script>
   </body>
 </html>

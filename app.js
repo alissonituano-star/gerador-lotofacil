@@ -1,5 +1,6 @@
 import { createDailyGame, testDailyGame } from "./daily-model.js";
-import { decodeDiary, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js";
+import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js";
+import { buildRatingProfile, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -19,6 +20,7 @@ const state = {
 const $ = (selector) => document.querySelector(selector);
 const screens = [...document.querySelectorAll("[data-screen]")];
 const tabs = [...document.querySelectorAll("[data-tab]")];
+const ratingProfiles = new Map();
 
 function renderScreen(focusHeading = false) {
   const target = window.location.hash.slice(1);
@@ -467,9 +469,45 @@ const formatPercent = new Intl.NumberFormat("pt-BR", { style: "percent", maximum
 const formatSmallPercent = new Intl.NumberFormat("pt-BR", { style: "percent", maximumFractionDigits: 4 });
 const formatPoints = new Intl.NumberFormat("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 2 });
 
+function ratingFor(numbers, contest) {
+  if (!ratingProfiles.has(contest)) {
+    ratingProfiles.set(contest, buildRatingProfile(state.analysis.sorted, contest));
+  }
+  return rateGame(numbers, ratingProfiles.get(contest));
+}
+
+function ratingBadge({ score, level }) {
+  return `<span class="rating-badge ${level.tone}"><strong>${score}/100</strong> ${level.label}</span>`;
+}
+
+function ratingBreakdown(rating) {
+  return `
+    <ul class="rating-breakdown">
+      ${rating.criteria.map(({ name, value, points, weight }) => `
+        <li><span>${name}${value === null ? "" : ` · ${value}`}</span>
+          <strong>${points === null ? "Indisponível" : `${formatPoints.format(points)} de ${weight} pts`}</strong></li>
+      `).join("")}
+    </ul>
+  `;
+}
+
+function renderRatingLegends() {
+  const legend = `
+    <ul class="rating-legend">
+      ${RATING_LEVELS.map(({ range, label, tone }) => `<li class="rating-badge ${tone}"><strong>${range}</strong> ${label}</li>`).join("")}
+    </ul>
+    <p class="helper">A nota compara soma, ímpares, dezenas baixas e repetição com até ${RATING_WINDOW} sorteios anteriores ao concurso do jogo. A chance matemática é igual para combinações do mesmo tamanho.</p>
+  `;
+  document.querySelectorAll("[data-rating-legend]").forEach((container) => {
+    container.innerHTML = legend;
+  });
+}
+
 function renderDailyGame(game) {
+  const rating = ratingFor(game.numbers, game.contest);
   $("#games").innerHTML = `
     <div class="daily-numbers" aria-label="15 dezenas">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
+    <div>${ratingBadge(rating)}</div>
   `;
   $("#insightsHeading").textContent = game.registered ? "Leitura do jogo registrado" : "Leitura da sugestão";
   $("#dailyInsights").innerHTML = `
@@ -480,6 +518,7 @@ function renderDailyGame(game) {
         ? `<div><dt>Em comum com seu último jogo</dt><dd>${game.playedRepeat} dezenas</dd></div>`
         : ""}
     </dl>
+    <details><summary>Como a nota foi calculada</summary>${ratingBreakdown(rating)}</details>
     ${game.previousCount ? "" : '<p class="helper">Registre o jogo que fizer para personalizar as próximas sugestões.</p>'}
   `;
   $("#dailyFrequencies").innerHTML = `
@@ -519,16 +558,18 @@ function renderDailyBenchmark() {
 function renderGames() {
   $("#games").innerHTML = state.games.map((game) => {
     const issues = gameIssues(game.numbers, state.analysis);
+    const rating = ratingFor(game.numbers, nextContest());
     return `
     <article class="game">
       <div class="game-title">
         Jogo ${game.index}
         <span class="game-meta">${game.numbers.length} dezenas</span>
+        ${ratingBadge(rating)}
       </div>
       <div class="numbers">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
       <details class="game-explain">
         <summary>Ver critérios do jogo</summary>
-        <p>Pontuação do critério de seleção ${formatPoints.format(game.score)}</p>
+        ${ratingBreakdown(rating)}
         <ul>${explainGame(game.numbers, state.analysis).map((item) => `<li>${item}</li>`).join("")}</ul>
         ${issues.length ? `<p>Alertas: ${issues.join(", ")}</p>` : ""}
       </details>
@@ -745,6 +786,7 @@ function renderHistory() {
 
   $("#history").innerHTML = entries.slice(0, state.historyLimit).map((entry) => {
     const hits = entryHits(entry, byContest);
+    const rating = ratingFor(entry.numbers, entry.targetContest);
     return `
       <article class="history-item">
         <div>
@@ -752,7 +794,12 @@ function renderHistory() {
           <small>${formatUpdatedAt(entry.createdAt)} · ${diaryModeLabel(entry.mode)}</small>
         </div>
         <div class="numbers">${entry.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
-        <div class="history-result">${hits === null ? "aguardando resultado" : `${hits} acertos`}</div>
+        <div class="history-actions">
+          ${ratingBadge(rating)}
+          <div class="history-result">${hits === null ? "Aguardando resultado" : `${hits} acertos`}</div>
+          <button class="ghost danger" type="button" data-delete-game="${diaryEntryKey(entry)}"
+            aria-label="Excluir jogo do concurso ${entry.targetContest}">Excluir</button>
+        </div>
       </article>
     `;
   }).join("");
@@ -819,6 +866,21 @@ function clearHistory() {
   }
 }
 
+function deletePlayedGame(event) {
+  const button = event.target.closest("[data-delete-game]");
+  if (!button) return;
+  const key = button.dataset.deleteGame;
+  const entry = getPlayedGames().find((game) => diaryEntryKey(game) === key);
+  if (!entry || !confirm(`Excluir do diário este jogo do concurso ${entry.targetContest}?\n\n${entry.numbers.map(formatNumber).join(" ")}`)) return;
+  try {
+    setPlayedGames(getPlayedGames().filter((game) => diaryEntryKey(game) !== key));
+    renderDiaryChange();
+    showToast("Jogo excluído do diário.");
+  } catch {
+    showToast("Não consegui excluir o jogo neste navegador.");
+  }
+}
+
 function downloadCsv() {
   if (!state.analysis) return;
   const header = "numero,frequencia,percentual,frequencia_recente,atraso,pontuacao";
@@ -861,6 +923,7 @@ async function loadData() {
   const data = await response.json();
   if (state.data && data.updated_at <= state.data.updated_at) return;
   state.data = data;
+  ratingProfiles.clear();
   refreshAnalysis();
 }
 
@@ -928,7 +991,7 @@ async function installApp() {
 
 function setupPwa() {
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js").catch(() => {
+    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {
       showToast("O modo offline está indisponível.");
     });
   }
@@ -997,11 +1060,13 @@ $("#showMoreHistory").addEventListener("click", () => {
   renderHistory();
 });
 $("#clearHistory").addEventListener("click", clearHistory);
+$("#history").addEventListener("click", deletePlayedGame);
 $("#forceUpdate").addEventListener("click", forceUpdate);
 $("#installApp").addEventListener("click", installApp);
 window.addEventListener("hashchange", () => renderScreen(true));
 
 renderScreen();
+renderRatingLegends();
 setupPwa();
 init();
 setInterval(init, DATA_REFRESH_INTERVAL);

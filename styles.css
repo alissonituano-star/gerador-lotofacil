@@ -314,7 +314,30 @@ details summary {
 }
 .history-item strong, .history-item small { display: block; }
 .history-result { color: var(--accent-dark); font-size: .88rem; font-weight: 750; }
+.history-actions { display: grid; justify-items: end; gap: .45rem; }
 .empty-state { padding: .9rem; color: var(--muted); border-radius: 12px; background: var(--page); }
+
+.rating-badge {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem;
+  padding: .25rem .55rem;
+  border-radius: 7px;
+  font-size: .76rem;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+}
+.rating-badge strong { display: inline; }
+.rating-badge.balanced { color: #155435; background: #e2f5e9; }
+.rating-badge.acceptable { color: #714300; background: #fff0cc; }
+.rating-badge.unusual { color: #862d4c; background: #fce7ee; }
+.rating-legend, .rating-breakdown { list-style: none; margin: .45rem 0; padding: 0; }
+.rating-legend { display: flex; flex-wrap: wrap; gap: .4rem; }
+.rating-breakdown { display: grid; gap: .45rem; font-size: .83rem; }
+.rating-breakdown li { display: flex; flex-wrap: wrap; justify-content: space-between; gap: .2rem .65rem; }
+.ticket-legend { border-color: #ffffff30; }
+.ticket-legend summary, .ticket-legend .helper { color: #ded4f1; }
 
 .control-grid, .manual-form {
   display: grid;
@@ -372,6 +395,7 @@ input, select {
   .game-layout, .stats-layout { grid-template-columns: minmax(0, 1fr); gap: 14px; }
   .screen { gap: 14px; }
   .history-item { grid-template-columns: 1fr; gap: .55rem; }
+  .history-actions { display: flex; align-items: center; flex-wrap: wrap; }
   .toast { right: .8rem; bottom: calc(72px + env(safe-area-inset-bottom)); }
 }
 

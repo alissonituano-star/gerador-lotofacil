@@ -18,6 +18,10 @@ export function gameKey(numbers) {
   return [...numbers].sort((a, b) => a - b).map((number) => String(number).padStart(2, "0")).join("-");
 }
 
+export function diaryEntryKey(entry) {
+  return `${entry.targetContest}:${gameKey(entry.numbers)}`;
+}
+
 export function validNumbers(numbers, minSize = 15, maxSize = 20) {
   return Array.isArray(numbers) && numbers.length >= minSize && numbers.length <= maxSize
     && numbers.every((number) => Number.isInteger(number) && number >= 1 && number <= 25)
@@ -25,11 +29,10 @@ export function validNumbers(numbers, minSize = 15, maxSize = 20) {
 }
 
 export function mergeDiary(entries, additions) {
-  const key = (entry) => `${entry.targetContest}:${gameKey(entry.numbers)}`;
-  const existing = new Set(entries.map(key));
+  const existing = new Set(entries.map(diaryEntryKey));
   const added = [];
   for (const entry of additions) {
-    const identity = key(entry);
+    const identity = diaryEntryKey(entry);
     if (existing.has(identity)) continue;
     existing.add(identity);
     added.push(entry);
