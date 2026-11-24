@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=16">
+    <link rel="stylesheet" href="styles.css?v=17">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -66,12 +66,18 @@
           <summary>Calculadora de 15 acertos</summary>
           <p class="helper">Veja quantas combinações seu orçamento cobre e a chance de acertar as 15 dezenas.</p>
           <div class="control-grid">
-            <label>Orçamento por concurso em R$
-              <input id="chanceBudget" type="number" min="0" step="0.01" value="3.50">
-            </label>
-            <label>Concursos na simulação
-              <input id="chanceContests" type="number" min="1" max="10000" step="1" value="1">
-            </label>
+            <div class="field-group">
+              <label for="chanceBudget">Orçamento por concurso em R$</label>
+              <div class="field-with-actions" data-field-tools="copy clear" data-field-label="orçamento por concurso">
+                <input id="chanceBudget" type="number" min="0" step="0.01" value="3.50">
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="chanceContests">Concursos na simulação</label>
+              <div class="field-with-actions" data-field-tools="copy clear" data-field-label="quantidade de concursos">
+                <input id="chanceContests" type="number" min="1" max="10000" step="1" value="1">
+              </div>
+            </div>
           </div>
           <div id="chanceResults" class="metrics" aria-live="polite"></div>
           <p class="helper">A simulação considera combinações distintas dentro de cada concurso e sorteios independentes. <a href="https://loterias.caixa.gov.br/Paginas/Lotofacil.aspx#probabilidade">Probabilidades e preços da Caixa</a></p>
@@ -93,7 +99,9 @@
         <div class="panel contest-toolbar">
           <form id="contestSearch" class="contest-search">
             <label for="comparisonContest">Número do concurso</label>
-            <input id="comparisonContest" type="number" min="1" step="1" placeholder="Ex.: 3830" required disabled>
+            <div class="field-with-actions" data-field-tools="copy clear" data-field-label="número do concurso">
+              <input id="comparisonContest" type="number" min="1" step="1" placeholder="Ex.: 3830" required disabled>
+            </div>
             <button id="contestSearchButton" class="primary" type="submit" disabled>Buscar</button>
           </form>
           <div class="contest-nav" aria-label="Navegar entre concursos">
@@ -118,18 +126,27 @@
           <h2 id="simulationHeading">Simular jogo no histórico</h2>
           <p class="helper">Digite 15 dezenas ou carregue um jogo do Diário para ver como ele teria se saído nos concursos já sorteados.</p>
           <form id="historicalSimulation" class="manual-form">
-            <label class="simulation-numbers">15 dezenas
-              <textarea id="simulationNumbers" rows="2" placeholder="01 02 03 …" autocomplete="off" spellcheck="false" required></textarea>
-            </label>
-            <label>Carregar do Diário
-              <select id="simulationDiary" disabled><option value="">Escolha um jogo registrado</option></select>
-            </label>
-            <label>Concursos analisados
-              <select id="simulationScope">
-                <option value="all">Todos os concursos da base</option>
-                <option value="played">Só os concursos em que joguei</option>
-              </select>
-            </label>
+            <div class="field-group simulation-numbers">
+              <label for="simulationNumbers">15 dezenas</label>
+              <div class="field-with-actions" data-field-tools="copy clear" data-field-label="dezenas da simulação">
+                <textarea id="simulationNumbers" rows="2" placeholder="01 02 03 …" autocomplete="off" spellcheck="false" required></textarea>
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="simulationDiary">Carregar do Diário</label>
+              <div class="field-with-actions" data-field-tools="clear" data-field-label="jogo do Diário selecionado">
+                <select id="simulationDiary" disabled><option value="">Escolha um jogo registrado</option></select>
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="simulationScope">Concursos analisados</label>
+              <div class="field-with-actions" data-field-tools="clear" data-field-label="filtro de concursos analisados" data-clear-value="all">
+                <select id="simulationScope">
+                  <option value="all">Todos os concursos da base</option>
+                  <option value="played">Só os concursos em que joguei</option>
+                </select>
+              </div>
+            </div>
             <button id="simulationSubmit" class="primary" type="submit" disabled>Simular</button>
           </form>
           <p id="simulationStatus" class="helper" role="status"></p>
@@ -182,7 +199,10 @@
           <section class="panel" aria-labelledby="rankingHeading">
             <div class="section-heading">
               <h2 id="rankingHeading">Ranking das dezenas</h2>
-              <button class="ghost" id="downloadCsv">Baixar CSV</button>
+              <div class="copy-row">
+                <span id="copyRanking"></span>
+                <button class="ghost" id="downloadCsv">Baixar CSV</button>
+              </div>
             </div>
             <p class="helper">Atraso é o número de concursos desde a última vez que a dezena saiu.</p>
             <table class="comparison-table">
@@ -216,8 +236,18 @@
           <details>
             <summary>Registrar dezenas manualmente</summary>
             <form id="manualGame" class="manual-form">
-              <label>Concurso <input id="manualContest" type="number" min="1" step="1" required></label>
-              <label>15 dezenas <input id="manualNumbers" type="text" placeholder="01 02 03 …" autocomplete="off" required></label>
+              <div class="field-group">
+                <label for="manualContest">Concurso</label>
+                <div class="field-with-actions" data-field-tools="copy clear" data-field-label="número do concurso">
+                  <input id="manualContest" type="number" min="1" step="1" required>
+                </div>
+              </div>
+              <div class="field-group">
+                <label for="manualNumbers">15 dezenas</label>
+                <div class="field-with-actions" data-field-tools="copy clear" data-field-label="dezenas do registro manual">
+                  <input id="manualNumbers" type="text" placeholder="01 02 03 …" autocomplete="off" required>
+                </div>
+              </div>
               <button class="primary" type="submit">Salvar jogo</button>
             </form>
           </details>
@@ -243,16 +273,22 @@
         <section class="panel" aria-labelledby="reportPeriodHeading">
           <h2 id="reportPeriodHeading">Período</h2>
           <div class="report-filters">
-            <label>Ver por
-              <select id="reportPeriod">
-                <option value="week">Semana</option>
-                <option value="month" selected>Mês</option>
-                <option value="year">Ano</option>
-              </select>
-            </label>
-            <label>Data de referência
-              <input id="reportDate" type="date" required>
-            </label>
+            <div class="field-group">
+              <label for="reportPeriod">Ver por</label>
+              <div class="field-with-actions" data-field-tools="clear" data-field-label="filtro de período" data-clear-value="month">
+                <select id="reportPeriod">
+                  <option value="week">Semana</option>
+                  <option value="month" selected>Mês</option>
+                  <option value="year">Ano</option>
+                </select>
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="reportDate">Data de referência</label>
+              <div class="field-with-actions" data-field-tools="copy clear" data-field-label="data de referência">
+                <input id="reportDate" type="date">
+              </div>
+            </div>
             <div class="report-period-nav" aria-label="Navegar entre períodos">
               <button class="ghost" id="reportPrevious" type="button">Anterior</button>
               <button class="ghost" id="reportCurrent" type="button">Atual</button>
@@ -329,15 +365,24 @@
                 <option value="closure20">Base 20 amarrada</option>
               </select>
             </label>
-            <label>Limite diário em R$
-              <input id="dailyBudget" type="number" min="0" step="0.50" value="3.50">
-            </label>
-            <label>Janela do ranking em concursos
-              <input id="recentWindow" type="number" min="10" max="500" value="120">
-            </label>
-            <label class="multiple-mode">Quantidade
-              <input id="gameCount" type="number" min="1" max="100" value="4">
-            </label>
+            <div class="field-group">
+              <label for="dailyBudget">Limite diário em R$</label>
+              <div class="field-with-actions" data-field-tools="copy" data-field-label="limite diário">
+                <input id="dailyBudget" type="number" min="0" step="0.50" value="3.50">
+              </div>
+            </div>
+            <div class="field-group">
+              <label for="recentWindow">Janela do ranking em concursos</label>
+              <div class="field-with-actions" data-field-tools="copy" data-field-label="janela do ranking">
+                <input id="recentWindow" type="number" min="10" max="500" value="120">
+              </div>
+            </div>
+            <div class="field-group multiple-mode">
+              <label for="gameCount">Quantidade</label>
+              <div class="field-with-actions" data-field-tools="copy" data-field-label="quantidade de jogos">
+                <input id="gameCount" type="number" min="1" max="100" value="4">
+              </div>
+            </div>
             <label class="multiple-mode">Dezenas por jogo
               <select id="gameSize">
                 <option value="15">15 dezenas</option>
@@ -382,13 +427,22 @@
     <dialog id="reportEditor" class="report-editor" aria-labelledby="reportEditorHeading">
       <form id="reportEditorForm" class="report-editor-form">
         <h2 id="reportEditorHeading">Editar valores do jogo</h2>
-        <p class="helper" id="reportEditorGame"></p>
-        <label>Valor pago em R$
-          <input id="reportSpent" type="number" min="0" step="0.01" max="1000000000">
-        </label>
-        <label>Prêmio recebido em R$
-          <input id="reportPrize" type="number" min="0" step="0.01" max="1000000000">
-        </label>
+        <div class="section-heading">
+          <p class="helper" id="reportEditorGame"></p>
+          <span id="reportEditorCopy"></span>
+        </div>
+        <div class="field-group">
+          <label for="reportSpent">Valor pago em R$</label>
+          <div class="field-with-actions" data-field-tools="copy clear" data-field-label="valor pago">
+            <input id="reportSpent" type="number" min="0" step="0.01" max="1000000000">
+          </div>
+        </div>
+        <div class="field-group">
+          <label for="reportPrize">Prêmio recebido em R$</label>
+          <div class="field-with-actions" data-field-tools="copy clear" data-field-label="prêmio recebido">
+            <input id="reportPrize" type="number" min="0" step="0.01" max="1000000000">
+          </div>
+        </div>
         <p class="helper">Campos vazios usam os valores disponíveis no app. Digite 0 para confirmar que o valor foi zero.</p>
         <p id="reportEditorStatus" class="helper" role="status"></p>
         <div class="report-editor-actions">
@@ -399,7 +453,7 @@
     </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=16").catch((error) => {
+      import("./app.js?v=17").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";

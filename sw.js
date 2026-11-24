@@ -1,11 +1,13 @@
 const CACHE_PREFIX = "gerador-lotofacil-";
-const CACHE_NAME = `${CACHE_PREFIX}v16`;
+const CACHE_NAME = `${CACHE_PREFIX}v17`;
 const APP_FILES = [
   "./",
   "./index.html",
-  "./styles.css?v=16",
-  "./app.js?v=16",
-  "./report-screen.js?v=16",
+  "./styles.css?v=17",
+  "./app.js?v=17",
+  "./clipboard.js?v=17",
+  "./field-actions.js?v=17",
+  "./report-screen.js?v=17",
   "./diary-report.js?v=16",
   "./contest-payout.js?v=16",
   "./contest-comparison.js?v=14",

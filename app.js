@@ -4,7 +4,8 @@ import { buildRatingProfile, MIN_DAILY_RATING, rateGame, RATING_LEVELS, RATING_W
 import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
 import { compareContest } from "./contest-comparison.js?v=14";
 import { simulateHistoricalGame } from "./contest-simulation.js?v=15";
-import { createDiaryReport } from "./report-screen.js?v=16";
+import { createDiaryReport } from "./report-screen.js?v=17";
+import { copyNumbersButton, copyText, installFieldActions } from "./field-actions.js?v=17";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -21,6 +22,7 @@ const state = {
   historyLimit: 12,
   manualDefaultContest: null,
   lastComparedContest: null,
+  comparisonCleared: false,
   simulation: null,
   installPrompt: null,
 };
@@ -31,7 +33,7 @@ const tabs = [...document.querySelectorAll("[data-tab]")];
 const ratingProfiles = new Map();
 
 function renderScreen(focusHeading = false) {
-  const [target] = window.location.hash.slice(1).split("/");
+  const [target, selectedContest] = window.location.hash.slice(1).split("/");
   if (target === "conteudo") return;
   const screen = screens.find(({ id }) => id === target) ?? screens[0];
   const screenChanged = screen.hidden;
@@ -45,6 +47,7 @@ function renderScreen(focusHeading = false) {
     renderForecastAudit();
   }
   if (screen.id === "concursos") {
+    if (screenChanged || selectedContest) state.comparisonCleared = false;
     renderContestComparison(true);
     if (screenChanged) refreshHistoricalSimulation();
     if (focusHeading && !screenChanged) window.scrollTo(0, 0);
@@ -457,6 +460,7 @@ function renderSummary() {
 
 function renderRanking() {
   $("#rankingWindow").textContent = `Últimos ${state.analysis.recent.length}`;
+  $("#copyRanking").innerHTML = copyNumbersButton(state.analysis.ranking.map(({ number }) => number), "Copiar dezenas do ranking");
   $("#numberRanking").innerHTML = state.analysis.ranking.map((item) => `
     <tr>
       <th scope="row"><span class="ball">${formatNumber(item.number)}</span></th>
@@ -472,6 +476,7 @@ function renderPairs() {
     <div class="pair">
       <span>${pair.numbers.map(formatNumber).join(" + ")}</span>
       <small>${pair.count} vezes</small>
+      ${copyNumbersButton(pair.numbers, `Copiar par ${pair.numbers.map(formatNumber).join(" e ")}`)}
     </div>
   `).join("");
 }
@@ -637,6 +642,7 @@ function renderGames() {
         Jogo ${game.index}
         <span class="game-meta">${game.numbers.length} dezenas</span>
         ${ratingBadge(rating)}
+        ${copyNumbersButton(game.numbers, `Copiar dezenas do jogo ${game.index}`)}
       </div>
       <div class="numbers">${game.numbers.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
       <details class="game-explain">
@@ -666,7 +672,8 @@ function renderCoverage() {
     <div><strong>${allNumbers.size}</strong><small>dezenas cobertas</small></div>
     <div><strong>${maxOverlap}</strong><small>maior repetição entre jogos</small></div>
     <div><strong>${formatPoints.format(avgOverlap)}</strong><small>repetição média</small></div>
-    ${base ? `<div><strong>${base.map(formatNumber).join(" ")}</strong><small>base 20 usada</small></div>` : ""}
+    ${base ? `<div><strong>${base.map(formatNumber).join(" ")}</strong><small>base 20 usada</small>
+      ${copyNumbersButton(base, "Copiar dezenas da base", "Copiar base")}</div>` : ""}
   `;
 }
 
@@ -770,6 +777,7 @@ function comparisonContest() {
 }
 
 function openContestComparison(contest) {
+  state.comparisonCleared = false;
   const hash = `#concursos/${contest}`;
   if (window.location.hash === hash) renderContestComparison(true);
   else window.location.hash = hash;
@@ -785,10 +793,12 @@ function renderContestComparison(updateInput = false) {
   input.disabled = false;
   input.min = first;
   input.max = latest + 1;
-  if (updateInput || !input.value || input.valueAsNumber === state.lastComparedContest) input.value = contest;
-  state.lastComparedContest = contest;
+  if (!state.comparisonCleared) {
+    if (updateInput || !input.value || input.valueAsNumber === state.lastComparedContest) input.value = contest;
+    state.lastComparedContest = contest;
+  }
 
-  const inRange = contest >= first && contest <= latest + 1;
+  const inRange = !state.comparisonCleared && contest >= first && contest <= latest + 1;
   $("#contestSearchButton").disabled = false;
   $("#previousContest").disabled = !inRange || contest <= first;
   $("#nextContestButton").disabled = !inRange || contest >= latest + 1;
@@ -796,7 +806,9 @@ function renderContestComparison(updateInput = false) {
   $("#contestComparison").hidden = !inRange;
   $("#comparisonStatus").hidden = inRange;
   if (!inRange) {
-    $("#comparisonStatus").textContent = `Escolha um concurso de ${first} a ${latest + 1}.`;
+    $("#comparisonStatus").textContent = state.comparisonCleared
+      ? "Digite um número de concurso para conferir."
+      : `Escolha um concurso de ${first} a ${latest + 1}.`;
     return;
   }
 
@@ -815,7 +827,10 @@ function renderContestComparison(updateInput = false) {
         return `<li class="draw-cell${selected ? " is-drawn" : ""}" aria-label="${formatNumber(number)}${selected ? ", sorteada" : ""}">${formatNumber(number)}</li>`;
       }).join("")}
     </ol>
-    <p class="helper">As dezenas em roxo saíram no sorteio.</p>
+    <div class="section-heading">
+      <p class="helper">As dezenas em roxo saíram no sorteio.</p>
+      ${copyNumbersButton(draw.numbers, `Copiar dezenas sorteadas no concurso ${contest}`, "Copiar sorteadas")}
+    </div>
     ${renderDrawProfile(draw, state.analysis.sorted[drawIndex + 1])}
   ` : "";
 
@@ -856,9 +871,14 @@ function renderComparedPlays(plays, hasResult) {
               ? `<span class="mini-ball is-hit" aria-label="${formatNumber(number)}, acerto">${formatNumber(number)}&nbsp;✓</span>`
               : `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}
           </div>
+          <div class="copy-row">
+            ${copyNumbersButton(entry.numbers, `Copiar dezenas do jogo ${index + 1}`, "Copiar jogo")}
+            ${copyNumbersButton(hits ?? [], `Copiar acertos do jogo ${index + 1}`, "Copiar acertos")}
+          </div>
           ${missing?.length ? `
             <details><summary>Sorteadas que ficaram de fora (${missing.length})</summary>
               <div class="numbers">${missing.map((number) => `<span class="mini-ball">${formatNumber(number)}</span>`).join("")}</div>
+              <div class="copy-row">${copyNumbersButton(missing, `Copiar dezenas que ficaram de fora do jogo ${index + 1}`)}</div>
             </details>
           ` : ""}
         </article>
@@ -872,6 +892,16 @@ function parseFifteenNumbers(value) {
   const numbers = digits.map(Number).sort((a, b) => a - b);
   return digits.every((digit) => /^\d{1,2}$/.test(digit)) && validNumbers(numbers, DRAW_SIZE, DRAW_SIZE)
     ? numbers : null;
+}
+
+function clearSearchField(field, previous) {
+  if (field.id === "comparisonContest") {
+    state.comparisonCleared = true;
+    state.lastComparedContest = null;
+    window.history.replaceState(null, "", "#concursos");
+    renderContestComparison();
+  }
+  if (field.id === "simulationDiary" && previous) $("#simulationNumbers").value = "";
 }
 
 function refreshHistoricalSimulation() {
@@ -1041,6 +1071,7 @@ function renderHistory() {
         <div class="history-actions">
           ${ratingBadge(rating)}
           <div class="history-result">${hits === null ? "Aguardando resultado" : `${hits} acertos`}</div>
+          ${copyNumbersButton(entry.numbers, `Copiar jogo do concurso ${entry.targetContest}`)}
           <button class="ghost danger" type="button" data-delete-game="${diaryEntryKey(entry)}"
             aria-label="Excluir jogo do concurso ${entry.targetContest}">Excluir</button>
         </div>
@@ -1153,14 +1184,9 @@ function downloadFile(content, type, filename) {
 
 async function copyGames() {
   const text = state.games
-    .map((game) => `${state.daily ? "" : `Jogo ${game.index}: `}${game.numbers.map(formatNumber).join(" ")}`)
+    .map((game) => game.numbers.map(formatNumber).join(" "))
     .join("\n");
-  try {
-    await navigator.clipboard.writeText(text);
-    showToast("Dezenas copiadas.");
-  } catch {
-    showToast("Não consegui copiar as dezenas neste navegador.");
-  }
+  await copyText(text, showToast);
 }
 
 let pendingLoad;
@@ -1389,6 +1415,7 @@ const refreshDiaryReport = createDiaryReport({
   onDiaryChanged: renderDiaryChange,
   notify: showToast,
 });
+installFieldActions({ onClear: clearSearchField, notify: showToast });
 renderScreen();
 renderRatingLegends();
 renderChanceCalculator();

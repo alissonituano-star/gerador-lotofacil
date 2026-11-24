@@ -540,7 +540,6 @@ details summary {
 }
 .report-editor::backdrop { background: #26183f70; }
 .report-editor form, .report-editor-actions { margin-top: .85rem; }
-.report-editor form > label + label { margin-top: .65rem; }
 .report-editor-actions { justify-content: flex-end; }
 
 .control-grid, .manual-form {
@@ -576,6 +575,48 @@ input, select {
   border-radius: 9px;
   font-size: 1rem;
 }
+.field-with-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: .35rem;
+  min-width: 0;
+}
+.field-group { display: grid; gap: .3rem; min-width: 0; }
+.report-editor .field-group { margin-top: .65rem; }
+.field-with-actions > :is(input, select, textarea) {
+  flex: 1 1 min(100%, 6rem);
+  min-width: 0;
+  width: 0;
+}
+.field-with-actions > :is(input[type="date"], textarea) {
+  flex-basis: min(100%, 10rem);
+}
+.field-actions, .copy-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: .35rem;
+  min-width: 0;
+}
+.copy-row { justify-content: flex-end; }
+.field-action, .copy-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 44px;
+  min-height: 44px;
+  padding: .4rem .55rem;
+  border-color: var(--line);
+  background: transparent;
+  color: var(--accent-dark);
+  font-size: .78rem;
+  line-height: 1.2;
+}
+.field-action:hover, .copy-action:hover { background: var(--muted-surface); }
+.ticket .copy-action { border-color: #ffffff50; color: #fff; }
+.ticket .copy-action:hover { background: #ffffff20; }
+.pair .copy-action { margin-left: .2rem; }
 .button-row { margin-top: .65rem; }
 .toast {
   position: fixed;

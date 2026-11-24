@@ -1,6 +1,7 @@
 import { fetchContestPayouts } from "./contest-payout.js?v=16";
 import { buildDiaryReport, moveReportDate, reportPeriod } from "./diary-report.js?v=16";
 import { diaryEntryKey, getPlayedGames, setPlayedGames } from "./diary.js?v=16";
+import { copyNumbersButton } from "./field-actions.js?v=17";
 
 const ROWS_PER_PAGE = 30;
 const REQUEST_BATCH = 4;
@@ -104,8 +105,11 @@ function renderRows(rows, limit) {
       <td>${row.points ?? "Pendente"}</td>
       <td>${money(row.spentCents)}${row.spentCents !== null && !row.spentConfirmed ? "<br><small>Estimado</small>" : ""}</td>
       <td>${money(row.prizeCents)}${prizeLabels[row.prizeSource] ? `<br><small>${prizeLabels[row.prizeSource]}</small>` : ""}</td>
-      <td><button class="ghost" type="button" data-report-edit="${diaryEntryKey(row.entry)}"
-        aria-label="Editar valores do jogo no concurso ${row.entry.targetContest}">Editar</button></td>
+      <td><div class="copy-row">
+        ${copyNumbersButton(row.entry.numbers, `Copiar jogo do concurso ${row.entry.targetContest}`)}
+        <button class="ghost" type="button" data-report-edit="${diaryEntryKey(row.entry)}"
+          aria-label="Editar valores do jogo no concurso ${row.entry.targetContest}">Editar</button>
+      </div></td>
     </tr>
   `).join("");
 }
@@ -158,7 +162,7 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
     }
     let period;
     try {
-      period = reportPeriod(kind.value, dateInput.value);
+      period = reportPeriod(kind.value, dateInput.value || today());
     } catch {
       dateInput.value = today();
       period = reportPeriod(kind.value, dateInput.value);
@@ -193,6 +197,7 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
     if (!row) return;
     editingKey = button.dataset.reportEdit;
     $("reportEditorGame").textContent = `Concurso ${row.entry.targetContest} · ${row.entry.numbers.map((number) => String(number).padStart(2, "0")).join(" ")}`;
+    $("reportEditorCopy").innerHTML = copyNumbersButton(row.entry.numbers, "Copiar dezenas do jogo");
     $("reportSpent").value = row.entry.spentCents == null ? "" : (row.entry.spentCents / 100).toFixed(2);
     $("reportPrize").value = row.entry.prizeReceivedCents == null ? "" : (row.entry.prizeReceivedCents / 100).toFixed(2);
     $("reportEditorStatus").textContent = "";
