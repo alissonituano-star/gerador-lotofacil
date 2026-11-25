@@ -6,6 +6,7 @@ import { compareContest } from "./contest-comparison.js?v=14";
 import { simulateHistoricalGame } from "./contest-simulation.js?v=15";
 import { createDiaryReport } from "./report-screen.js?v=18";
 import { copyNumbersButton, copyText, installFieldActions } from "./field-actions.js?v=17";
+import { fetchCaixaDraws, mergeCaixaDraws } from "./caixa-results.js?v=19";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -1210,6 +1211,24 @@ async function copyGames() {
 }
 
 let pendingLoad;
+let pendingCaixa;
+let publishedVersion = "";
+let caixaDraws = [];
+
+function applyResultData(data) {
+  const previous = state.data;
+  const previousAnalysis = state.analysis;
+  state.data = data;
+  ratingProfiles.clear();
+  try {
+    refreshAnalysis();
+  } catch (error) {
+    state.data = previous;
+    state.analysis = previousAnalysis;
+    throw error;
+  }
+  $("#retryLoading").hidden = true;
+}
 
 function loadData() {
   pendingLoad ??= readPublishedData().finally(() => {
@@ -1225,40 +1244,60 @@ async function readPublishedData() {
     const response = await fetch("data/lotofacil.json", { cache: "no-cache", signal: controller.signal });
     if (!response.ok) throw new Error("Base indisponível");
     const data = await response.json();
-    if (!data?.results?.length || !data.updated_at) throw new Error("Base de concursos inválida");
-    const previous = state.data;
-    if (previous && data.updated_at <= previous.updated_at) return;
-    const previousAnalysis = state.analysis;
-    state.data = data;
-    ratingProfiles.clear();
-    try {
-      refreshAnalysis();
-    } catch (error) {
-      state.data = previous;
-      state.analysis = previousAnalysis;
-      throw error;
-    }
-    $("#retryLoading").hidden = true;
+    if (!data?.results?.length || !data.updated_at || !Number.isSafeInteger(data.latest_contest)) throw new Error("Base de concursos inválida");
+    if (data.updated_at <= publishedVersion) return;
+    const merged = mergeCaixaDraws(data, caixaDraws, state.data?.updated_at ?? data.updated_at);
+    if (state.data && merged.latest_contest < state.data.latest_contest) return;
+    applyResultData(merged);
+    publishedVersion = data.updated_at;
   } finally {
     clearTimeout(timer);
   }
 }
 
-async function forceUpdate() {
-  const button = $("#forceUpdate");
+function consultCaixa() {
+  pendingCaixa ??= refreshCaixa().finally(() => {
+    pendingCaixa = undefined;
+  });
+  return pendingCaixa;
+}
+
+async function refreshCaixa() {
+  if (!state.data) await loadData();
+  const draws = await fetchCaixaDraws(state.data.latest_contest);
+  const { contest, date } = draws[0];
+  const data = mergeCaixaDraws(state.data, draws, new Date().toISOString());
+  if (data !== state.data) applyResultData(data);
+  if (!caixaDraws.length || contest >= caixaDraws[0].contest) {
+    const byContest = new Map([...caixaDraws, ...draws].map((draw) => [draw.contest, draw]));
+    caixaDraws = [...byContest.values()].sort((a, b) => b.contest - a.contest);
+  }
+  const message = `Último resultado consultado na Caixa. Concurso ${contest} de ${date}.`;
+  if ($("#caixaStatus").textContent !== message) $("#caixaStatus").textContent = message;
+  return contest;
+}
+
+async function forceUpdate(event) {
+  const button = event.currentTarget;
+  const fromComparison = button.id === "checkCaixa";
   const originalText = button.textContent;
   button.disabled = true;
   button.textContent = "Consultando…";
 
   try {
-    if (isLocalServer()) {
+    if (!fromComparison && isLocalServer()) {
       const response = await fetch("/api/update", { method: "POST" });
       if (!response.ok || !(await response.json()).ok) throw new Error("Atualização indisponível.");
+      await loadData();
     }
-    await loadData();
-    showToast(`Base consultada até o concurso ${state.analysis.sorted[0].contest}.`);
+    const contest = await consultCaixa();
+    if (fromComparison && !$("#concursos").hidden) openContestComparison(state.data.latest_contest);
+    showToast(`A Caixa retornou o concurso ${contest}.`);
   } catch {
-    showToast("Não consegui consultar os resultados. Tente novamente em instantes.");
+    await loadData().catch(() => {});
+    showToast(state.data
+      ? `Caixa indisponível agora. Histórico disponível até o concurso ${state.data.latest_contest}.`
+      : "Não consegui consultar os resultados. Tente novamente em instantes.");
   } finally {
     button.disabled = false;
     button.textContent = originalText;
@@ -1374,6 +1413,12 @@ async function init() {
   }
 }
 
+function refreshResults() {
+  if (document.hidden) return;
+  void init();
+  void consultCaixa().catch(() => {});
+}
+
 $("#generate").addEventListener("click", () => {
   if ($("#generationMode").value !== "daily") generateGames();
   window.location.hash = "jogo";
@@ -1406,6 +1451,7 @@ $("#showMoreHistory").addEventListener("click", () => {
 $("#clearHistory").addEventListener("click", clearHistory);
 $("#history").addEventListener("click", deletePlayedGame);
 $("#forceUpdate").addEventListener("click", forceUpdate);
+$("#checkCaixa").addEventListener("click", forceUpdate);
 $("#contestSearch").addEventListener("submit", (event) => {
   event.preventDefault();
   const contest = $("#comparisonContest").valueAsNumber;
@@ -1424,10 +1470,10 @@ $("#simulationNumbers").addEventListener("input", () => {
   resetHistoricalSimulation();
 });
 $("#simulationScope").addEventListener("change", resetHistoricalSimulation);
-$("#retryLoading").addEventListener("click", init);
-$("#contestRetry").addEventListener("click", init);
+$("#retryLoading").addEventListener("click", refreshResults);
+$("#contestRetry").addEventListener("click", refreshResults);
 $("#installApp").addEventListener("click", installApp);
-window.addEventListener("online", init);
+window.addEventListener("online", refreshResults);
 window.addEventListener("hashchange", () => renderScreen(true));
 
 const refreshDiaryReport = createDiaryReport({
@@ -1441,8 +1487,6 @@ renderRatingLegends();
 renderChanceCalculator();
 renderChanceFormats();
 setupPwa();
-init();
-setInterval(init, DATA_REFRESH_INTERVAL);
-document.addEventListener("visibilitychange", () => {
-  if (!document.hidden) init();
-});
+refreshResults();
+setInterval(refreshResults, DATA_REFRESH_INTERVAL);
+document.addEventListener("visibilitychange", refreshResults);

@@ -1,10 +1,10 @@
 # Gerador e analisador Lotofacil
 
-Sistema local para baixar resultados historicos da Lotofacil no Lotorama e analisar combinacoes.
+Sistema para consultar resultados da Lotofácil, conferir jogos e analisar combinações.
 
 ## Como usar
 
-1. Abra o sistema. Ele consulta o histórico completo do Lotorama na inicialização e a cada 15 minutos enquanto o servidor estiver rodando:
+1. Abra o sistema. Ele sincroniza o histórico na inicialização e a cada 15 minutos enquanto o servidor local estiver rodando:
 
 ```powershell
 npm run dev
@@ -42,7 +42,7 @@ Depois que o site estiver aberto no celular:
 - Android/Chrome: toque em `Instalar` quando o botao aparecer, ou abra o menu do Chrome e toque em `Adicionar a tela inicial`.
 - iPhone/Safari: toque em compartilhar e depois em `Adicionar a Tela de Inicio`.
 
-O app tambem tem cache offline. Se a internet cair, ele tenta abrir com a ultima base carregada. A página verifica a base a cada minuto e atualiza o diário quando chegam novos resultados.
+O app abre com a base em cache quando está sem internet. Com o app aberto e visível, ele consulta a API oficial da Caixa a cada minuto e confere o Diário quando chegam novos resultados. Na aba `Conferir`, toque em `Consultar Caixa` para buscar o último concurso imediatamente.
 
 Para atualizar sem abrir o sistema:
 
@@ -62,7 +62,7 @@ Se voce perdeu o horario automatico, force manualmente com:
 npm run force
 ```
 
-No modo local (`npm run dev` ou `npm run mobile`), a tela tambem tem o botao `Atualizar`, que baixa os resultados na hora e mostra a data da ultima atualizacao.
+No modo local (`npm run dev` ou `npm run mobile`), o botão `Consultar resultados` em `Estatísticas` também sincroniza o arquivo de histórico no computador.
 
 ## Rodar online pelo GitHub Pages
 
@@ -75,7 +75,7 @@ Depois de subir para um repositorio no GitHub:
 3. Em `Build and deployment`, selecione `GitHub Actions`.
 4. O workflow `Publicar sistema` vai publicar o site.
 
-O workflow tenta atualizar a base duas vezes por hora. Se a consulta ao Lotorama falhar, o sistema busca na Caixa os concursos que faltam na base local. Se as duas fontes estiverem indisponíveis, o site continua com a última base salva.
+O workflow tenta atualizar a base duas vezes por hora. Com o histórico salvo, ele consulta primeiro a Caixa para preencher os concursos que faltam. O Lotorama fornece a base inicial e serve de alternativa quando a Caixa está indisponível. Se a consulta falhar, o site continua com o último histórico salvo.
 
 O metodo mais confiavel para atualizar automaticamente no GitHub e deixar o Windows rodar este arquivo uma vez por dia:
 

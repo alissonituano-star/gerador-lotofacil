@@ -1,10 +1,11 @@
 const CACHE_PREFIX = "gerador-lotofacil-";
-const CACHE_NAME = `${CACHE_PREFIX}v18`;
+const CACHE_NAME = `${CACHE_PREFIX}v19`;
 const APP_FILES = [
   "./",
   "./index.html",
   "./styles.css?v=18",
-  "./app.js?v=18",
+  "./app.js?v=19",
+  "./caixa-results.js?v=19",
   "./clipboard.js?v=17",
   "./field-actions.js?v=17",
   "./report-screen.js?v=18",
@@ -44,6 +45,7 @@ self.addEventListener("activate", (event) => {
 
 self.addEventListener("fetch", (event) => {
   if (event.request.method !== "GET") return;
+  if (event.request.cache === "no-store" && new URL(event.request.url).origin !== self.location.origin) return;
 
   const networkResponse = event.request.mode === "navigate"
     ? fetch(event.request, { cache: "no-cache" })

@@ -96,6 +96,14 @@
           <h1 id="comparisonHeading" tabindex="-1">Conferir concursos</h1>
           <p class="helper">Busque um concurso para ver o resultado e comparar com os jogos que você registrou.</p>
         </div>
+        <section class="panel" aria-labelledby="caixaHeading">
+          <div class="section-heading">
+            <h2 id="caixaHeading">Último resultado</h2>
+            <button id="checkCaixa" class="primary" type="button">Consultar Caixa</button>
+          </div>
+          <p id="caixaStatus" class="helper" role="status">O app consulta a Caixa enquanto estiver aberto com internet.</p>
+          <a href="https://www.youtube.com/playlist?list=PLjyojW8y_HLuawIABZk5JtaISbbOj_B5W" target="_blank" rel="noopener">Sorteios no canal da Caixa</a>
+        </section>
         <div class="panel contest-toolbar">
           <form id="contestSearch" class="contest-search">
             <label for="comparisonContest">Número do concurso</label>
@@ -492,7 +500,7 @@
     </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=18").catch((error) => {
+      import("./app.js?v=19").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";

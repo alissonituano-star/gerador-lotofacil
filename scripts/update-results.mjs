@@ -57,7 +57,7 @@ function parsePage(html) {
 }
 
 async function fetchResults(url) {
-  const response = await fetch(url, { signal: AbortSignal.timeout(20_000) });
+  const response = await fetch(url, { cache: "no-cache", signal: AbortSignal.timeout(20_000) });
   if (!response.ok) throw new Error(`${new URL(url).hostname} retornou HTTP ${response.status}.`);
   return response.text();
 }
@@ -82,14 +82,15 @@ async function readLotoramaResults(current) {
 
   const byContest = new Map();
   const addResults = (entries) => {
-    for (const entry of entries) byContest.set(entry.contest, entry);
+    for (const entry of entries) {
+      if (!byContest.has(entry.contest)) byContest.set(entry.contest, entry);
+    }
   };
   addResults(current?.results ?? []);
   addResults(recent);
 
   if (byContest.size < latest) {
     addResults(parseResults(await fetchResults(CSV_URL)));
-    addResults(recent);
   }
   const totalPages = Number(html.match(/P(?:á|&aacute;)gina\s+\d+\s+de\s+(\d+)/i)?.[1] ?? 1);
   for (let page = 2; page <= totalPages && byContest.size < latest; page += 1) {
@@ -129,13 +130,17 @@ async function syncResults() {
   const current = await readCurrent();
   let source = SOURCE_URL;
   let results;
-  try {
+  if (!current?.results.length) {
     results = await readLotoramaResults(current);
-  } catch (error) {
-    console.warn(`Consulta ao Lotorama indisponível: ${error.message} Consultando a Caixa.`);
-    source = CAIXA_URL;
-    results = await readCaixaResults(current);
-    console.log(`Resultados confirmados pela Caixa até o concurso ${results[0].contest}.`);
+  } else {
+    try {
+      results = await readCaixaResults(current);
+      source = CAIXA_URL;
+      console.log(`Resultados confirmados pela Caixa até o concurso ${results[0].contest}.`);
+    } catch (error) {
+      console.warn(`Consulta à Caixa indisponível: ${error.message} Consultando o Lotorama.`);
+      results = await readLotoramaResults(current);
+    }
   }
 
   if (current && JSON.stringify(current.results) === JSON.stringify(results)) {
