@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=18">
+    <link rel="stylesheet" href="styles.css?v=21">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -23,7 +23,6 @@
         <nav class="app-nav" aria-label="Telas do aplicativo">
           <a href="#jogo" data-tab="jogo" aria-current="page">Jogo do dia</a>
           <a href="#concursos" data-tab="concursos">Conferir</a>
-          <a href="#estatisticas" data-tab="estatisticas">Estatísticas</a>
           <a href="#diario" data-tab="diario">Diário</a>
           <a href="#relatorio" data-tab="relatorio">Relatório</a>
           <a href="#ajustes" data-tab="ajustes">Ajustes</a>
@@ -91,49 +90,57 @@
         </details>
       </section>
 
-      <section class="screen" id="concursos" data-screen aria-labelledby="comparisonHeading" hidden>
+      <section class="screen" id="concursos" data-screen data-view-switcher aria-labelledby="comparisonHeading" hidden>
         <div class="screen-heading">
-          <h1 id="comparisonHeading" tabindex="-1">Conferir concursos</h1>
-          <p class="helper">Busque um concurso para ver o resultado e comparar com os jogos que você registrou.</p>
+          <h1 id="comparisonHeading" tabindex="-1">Conferir</h1>
         </div>
-        <section class="panel" aria-labelledby="caixaHeading">
+        <div class="screen-switcher" role="group" aria-label="Opções de conferência">
+          <button type="button" data-view-target="comparisonResultView" aria-controls="comparisonResultView" aria-pressed="true">Resultado</button>
+          <button type="button" data-view-target="comparisonSimulationView" aria-controls="comparisonSimulationView" aria-pressed="false">Simular</button>
+        </div>
+        <section class="panel screen-view comparison-result-card" id="comparisonResultView" data-view-panel aria-labelledby="drawHeading">
           <div class="section-heading">
-            <h2 id="caixaHeading">Último resultado</h2>
-            <button id="checkCaixa" class="primary" type="button">Consultar Caixa</button>
+            <h2 id="drawHeading">Sorteio</h2>
+            <button id="checkCaixa" class="ghost" type="button">Consultar Caixa</button>
           </div>
-          <p id="caixaStatus" class="helper" role="status">O app consulta a Caixa enquanto estiver aberto com internet.</p>
-          <a href="https://www.youtube.com/playlist?list=PLjyojW8y_HLuawIABZk5JtaISbbOj_B5W" target="_blank" rel="noopener">Sorteios no canal da Caixa</a>
-          <a class="more-button" href="#ajustes">Configurar avisos de sorteio</a>
-        </section>
-        <div class="panel contest-toolbar">
-          <form id="contestSearch" class="contest-search">
-            <label for="comparisonContest">Número do concurso</label>
-            <div class="field-with-actions" data-field-tools="copy clear" data-field-label="número do concurso">
-              <input id="comparisonContest" type="number" min="1" step="1" placeholder="Ex.: 3830" required disabled>
+          <div class="contest-toolbar">
+            <details id="contestSearchDetails" class="compact-disclosure contest-search-options">
+              <summary>Buscar concurso</summary>
+              <form id="contestSearch" class="contest-search">
+                <label for="comparisonContest">Número do concurso</label>
+                <div class="field-with-actions" data-field-tools="copy clear" data-field-label="número do concurso">
+                  <input id="comparisonContest" type="number" min="1" step="1" placeholder="Ex.: 3830" required disabled>
+                </div>
+                <button id="contestSearchButton" class="primary" type="submit" disabled>Buscar</button>
+              </form>
+            </details>
+            <div class="contest-nav" role="group" aria-label="Navegar entre concursos">
+              <button id="previousContest" class="ghost" type="button" disabled>Anterior</button>
+              <button id="nextContestButton" class="ghost" type="button" disabled>Próximo</button>
             </div>
-            <button id="contestSearchButton" class="primary" type="submit" disabled>Buscar</button>
-          </form>
-          <div class="contest-nav" aria-label="Navegar entre concursos">
-            <button id="previousContest" class="ghost" type="button" disabled>Anterior</button>
-            <button id="nextContestButton" class="ghost" type="button" disabled>Próximo</button>
           </div>
-        </div>
-        <p id="comparisonStatus" class="helper" role="status">Carregando base de concursos…</p>
-        <button id="contestRetry" class="ghost" type="button" hidden>Tentar novamente</button>
-        <div class="comparison-layout" id="contestComparison" hidden>
-          <section class="panel" aria-labelledby="drawHeading">
-            <h2 id="drawHeading">Dezenas sorteadas</h2>
+          <p id="comparisonStatus" class="helper" role="status">Carregando base de concursos…</p>
+          <button id="contestRetry" class="ghost" type="button" hidden>Tentar novamente</button>
+          <div id="contestComparison" hidden>
             <p id="drawDate" class="helper" role="status"></p>
             <div id="drawBoard"></div>
-          </section>
-          <section class="panel" aria-labelledby="playedHeading">
-            <h2 id="playedHeading">Seus jogos</h2>
-            <div id="contestPlays" class="contest-plays"></div>
-          </section>
-        </div>
-        <section class="panel" aria-labelledby="simulationHeading">
-          <h2 id="simulationHeading">Simular jogo no histórico</h2>
-          <p class="helper">Digite 15 dezenas ou carregue um jogo do Diário para ver como ele teria se saído nos concursos já sorteados.</p>
+            <details id="playedComparison" class="compact-disclosure">
+              <summary>Seus jogos <span id="contestPlaysSummary" class="result-count"></span></summary>
+              <div id="contestPlays" class="contest-plays"></div>
+            </details>
+          </div>
+          <details class="compact-disclosure contest-sources">
+            <summary>Fontes e avisos</summary>
+            <p id="caixaStatus" class="helper" role="status">O app consulta a Caixa enquanto estiver aberto com internet.</p>
+            <div class="button-row">
+              <a href="https://www.youtube.com/playlist?list=PLjyojW8y_HLuawIABZk5JtaISbbOj_B5W" target="_blank" rel="noopener">Sorteios no canal da Caixa</a>
+              <a href="#ajustes">Configurar avisos</a>
+            </div>
+          </details>
+        </section>
+        <section class="panel screen-view" id="comparisonSimulationView" data-view-panel aria-labelledby="simulationHeading" hidden>
+          <h2 id="simulationHeading">Simular 15 dezenas</h2>
+          <p class="helper">Confira como um jogo teria se saído nos concursos já sorteados.</p>
           <form id="historicalSimulation" class="manual-form">
             <div class="field-group simulation-numbers">
               <label for="simulationNumbers">15 dezenas</label>
@@ -172,7 +179,7 @@
         </section>
       </section>
 
-      <section class="screen" id="estatisticas" data-screen aria-labelledby="statsHeading" hidden>
+      <section class="screen" id="estatisticas" aria-labelledby="statsHeading" hidden>
         <div class="screen-heading">
           <h1 id="statsHeading" tabindex="-1">Estatísticas</h1>
           <p class="helper">Explore o histórico de sorteios e compare a estratégia com uma escolha aleatória.</p>
@@ -276,14 +283,11 @@
 
       <section class="screen" id="relatorio" data-screen aria-labelledby="reportHeading" hidden>
         <div class="screen-heading section-heading">
-          <div>
-            <h1 id="reportHeading" tabindex="-1">Relatório</h1>
-            <p class="helper">Acompanhe gastos, prêmios e acertos dos jogos registrados no Diário.</p>
-          </div>
+          <h1 id="reportHeading" tabindex="-1">Relatório</h1>
           <button class="primary" id="reportExport" type="button" disabled>Exportar PDF</button>
         </div>
-        <section class="panel" aria-labelledby="reportPeriodHeading">
-          <h2 id="reportPeriodHeading">Período</h2>
+        <details class="panel report-period-panel">
+          <summary><span>Período</span> <span id="reportRange" role="status"></span></summary>
           <div class="report-filters">
             <div class="field-group">
               <label for="reportPeriod">Ver por</label>
@@ -307,86 +311,113 @@
               <button class="ghost" id="reportNext" type="button">Próximo</button>
             </div>
           </div>
-          <p class="helper" id="reportRange" role="status"></p>
-        </section>
+          <p class="helper">Os jogos aparecem pela data do sorteio. Para resultados pendentes, usamos a data do registro.</p>
+        </details>
+        <button class="ghost" id="reportRetry" type="button" hidden>Consultar prêmios novamente</button>
 
-        <section class="panel" aria-labelledby="reportTotalsHeading">
-          <div class="section-heading">
-            <h2 id="reportTotalsHeading">Resumo financeiro</h2>
-            <button class="ghost" id="reportRetry" type="button" hidden>Consultar prêmios novamente</button>
+        <div class="report-views" data-view-switcher>
+          <div class="screen-switcher" role="group" aria-label="Seções do relatório">
+            <button type="button" data-view-target="reportSummaryView" aria-controls="reportSummaryView" aria-pressed="true">Resumo</button>
+            <button type="button" data-view-target="reportBankView" aria-controls="reportBankView" aria-pressed="false">Banca</button>
+            <button type="button" data-view-target="reportChartsView" aria-controls="reportChartsView" aria-pressed="false">Gráficos</button>
+            <button type="button" data-view-target="reportGamesView" aria-controls="reportGamesView" aria-pressed="false">Jogos</button>
           </div>
-          <div class="metrics" id="reportTotals"></div>
-          <p class="helper" id="reportNote" role="status"></p>
-        </section>
+          <div class="screen-view" id="reportSummaryView" data-view-panel>
+            <section class="panel" aria-labelledby="reportTotalsHeading">
+              <h2 id="reportTotalsHeading">Resumo financeiro</h2>
+              <div class="metrics report-compact-metrics" id="reportTotals"></div>
+              <p class="helper" id="reportActivity"></p>
+              <p class="helper" id="reportNote" role="status"></p>
+              <details id="reportTotalsDetails" hidden>
+                <summary>Detalhes dos valores</summary>
+                <p class="helper" id="reportSpentBreakdown"></p>
+                <p class="helper" id="reportPrizeBreakdown"></p>
+              </details>
+            </section>
+            <section class="panel" aria-labelledby="reportHitsHeading">
+              <h2 id="reportHitsHeading">Acertos por faixa</h2>
+              <p class="helper">Toque em uma faixa para ver os concursos.</p>
+              <div class="report-hits" id="reportHits"></div>
+            </section>
+          </div>
 
-        <section class="panel report-bank" aria-labelledby="reportBankHeading">
-          <div class="section-heading">
-            <h2 id="reportBankHeading">Banca mensal</h2>
-            <p id="reportBankMonth" class="helper"></p>
-          </div>
-          <p class="helper">Defina quanto reservou para apostar no mês indicado. O extrato usa a data do sorteio ou, enquanto o resultado estiver pendente, a data do registro.</p>
-          <form id="reportBankForm" class="report-bank-form">
-            <div class="field-group">
-              <label for="reportBankOpening">Saldo inicial em R$</label>
-              <div class="field-with-actions" data-field-tools="copy clear" data-field-label="saldo inicial da banca">
-                <input id="reportBankOpening" type="number" min="0" max="1000000000" step="0.01" inputmode="decimal" placeholder="100,00" required>
+          <div class="screen-view" id="reportBankView" data-view-panel hidden>
+            <section class="panel report-bank" aria-labelledby="reportBankHeading">
+              <div class="section-heading">
+                <h2 id="reportBankHeading">Banca mensal</h2>
+                <p id="reportBankMonth" class="helper"></p>
               </div>
-            </div>
-            <button class="primary" type="submit">Salvar saldo inicial</button>
-          </form>
-          <p class="helper" id="reportBankStatus" role="status"></p>
-          <div id="reportBankDetails" hidden>
-            <div class="metrics" id="reportBankTotals"></div>
-            <p class="helper" id="reportBankNote"></p>
-            <div class="section-heading">
-              <h3>Extrato do mês</h3>
-              <button class="ghost" id="reportBankExport" type="button">Baixar extrato em PDF</button>
-            </div>
-            <p class="helper" id="reportBankEmpty" hidden>Nenhum lançamento do Diário neste mês.</p>
-            <div class="report-table-wrap" id="reportBankTable" tabindex="0" aria-label="Extrato da banca mensal">
-              <table class="comparison-table">
-                <thead><tr><th scope="col">Lançamento</th><th scope="col">Valor</th><th scope="col">Saldo</th></tr></thead>
-                <tbody id="reportBankRows"></tbody>
-              </table>
-            </div>
-            <button class="ghost more-button" id="reportBankMore" type="button" hidden>Mostrar mais lançamentos</button>
+              <details id="reportBankEdit" open>
+                <summary id="reportBankEditLabel">Definir saldo inicial</summary>
+                <form id="reportBankForm" class="report-bank-form">
+                  <div class="field-group">
+                    <label for="reportBankOpening">Saldo inicial em R$</label>
+                    <div class="field-with-actions" data-field-tools="copy clear" data-field-label="saldo inicial da banca">
+                      <input id="reportBankOpening" type="number" min="0" max="1000000000" step="0.01" inputmode="decimal" placeholder="100,00" required>
+                    </div>
+                  </div>
+                  <button class="primary" type="submit">Salvar</button>
+                </form>
+              </details>
+              <p class="helper" id="reportBankStatus" role="status"></p>
+              <div id="reportBankDetails" hidden>
+                <div class="metrics report-compact-metrics" id="reportBankTotals"></div>
+                <p class="helper" id="reportBankNote"></p>
+                <div class="section-heading">
+                  <h3>Extrato</h3>
+                  <button class="ghost" id="reportBankExport" type="button">PDF do extrato</button>
+                </div>
+                <p class="helper" id="reportBankEmpty" hidden>Nenhum lançamento neste mês.</p>
+                <div class="report-table-wrap report-ledger" id="reportBankTable" tabindex="0" aria-label="Extrato da banca mensal">
+                  <table class="comparison-table">
+                    <thead><tr><th scope="col">Lançamento</th><th scope="col">Valor</th><th scope="col">Saldo</th></tr></thead>
+                    <tbody id="reportBankRows"></tbody>
+                  </table>
+                </div>
+                <div class="report-pagination" id="reportBankPages" role="group" aria-label="Páginas dos lançamentos" hidden>
+                  <button class="ghost" id="reportBankLess" type="button">Anterior</button>
+                  <span id="reportBankPageStatus" role="status"></span>
+                  <button class="ghost" id="reportBankMore" type="button">Próxima</button>
+                </div>
+              </div>
+            </section>
           </div>
-        </section>
 
-        <div class="report-charts" id="reportCharts" hidden>
-          <section class="panel" aria-labelledby="reportCashHeading">
-            <h2 id="reportCashHeading">Gastos e prêmios</h2>
-            <div class="report-chart-key">
-              <span><i class="report-spent" aria-hidden="true"></i>Gastos</span>
-              <span><i class="report-prize" aria-hidden="true"></i>Recebido</span>
-              <span><i class="report-official" aria-hidden="true"></i>Rateio da Caixa</span>
+          <div class="screen-view" id="reportChartsView" data-view-panel hidden>
+            <p class="panel helper" id="reportChartsEmpty" hidden>Nenhum jogo no período para exibir gráficos.</p>
+            <div class="report-chart-views" id="reportCharts" data-view-switcher hidden>
+              <div class="screen-switcher chart-switcher" aria-label="Tipos de gráfico">
+                <button type="button" data-view-target="reportCashView">Gastos e prêmios</button>
+                <button type="button" data-view-target="reportBalanceView">Saldo acumulado</button>
+              </div>
+              <section class="panel" id="reportCashView" data-view-panel>
+                <div class="report-chart-key">
+                  <span><i class="report-spent" aria-hidden="true"></i>Gastos</span>
+                  <span><i class="report-prize" aria-hidden="true"></i>Recebido</span>
+                  <span><i class="report-official" aria-hidden="true"></i>Rateio da Caixa</span>
+                </div>
+                <div class="report-chart" id="reportCashChart"></div>
+              </section>
+              <section class="panel" id="reportBalanceView" data-view-panel hidden>
+                <p class="helper">O saldo começa em zero e acumula os prêmios menos os gastos do período.</p>
+                <div class="balance-chart" id="reportBalanceChart"></div>
+              </section>
             </div>
-            <div class="report-chart" id="reportCashChart"></div>
-          </section>
-          <section class="panel" aria-labelledby="reportBalanceHeading">
-            <h2 id="reportBalanceHeading">Saldo acumulado no período</h2>
-            <p class="helper">A cada intervalo, somamos os prêmios apurados e descontamos os gastos desde o início do período. A conta começa em R$ 0,00. O saldo inicial da banca aparece no extrato.</p>
-            <div class="balance-chart" id="reportBalanceChart"></div>
-          </section>
+          </div>
+
+          <div class="screen-view" id="reportGamesView" data-view-panel hidden>
+            <section class="panel" id="reportEntriesPanel" aria-labelledby="reportEntriesHeading">
+              <h2 id="reportEntriesHeading">Valores por jogo</h2>
+              <p class="helper" id="reportGamesEmpty" hidden>Nenhum jogo do Diário neste período.</p>
+              <ul class="report-game-list" id="reportRows" role="list"></ul>
+              <div class="report-pagination" id="reportGamesPages" role="group" aria-label="Páginas dos jogos" hidden>
+                <button class="ghost" id="reportGamesLess" type="button">Anterior</button>
+                <span id="reportGamesPageStatus" role="status"></span>
+                <button class="ghost" id="reportMore" type="button">Próxima</button>
+              </div>
+            </section>
+          </div>
         </div>
-
-        <section class="panel" aria-labelledby="reportHitsHeading">
-          <h2 id="reportHitsHeading">Acertos por faixa</h2>
-          <p class="helper">Cada jogo entra na sua maior faixa de acertos. Toque em uma faixa para ver os concursos.</p>
-          <div class="report-hits" id="reportHits"></div>
-        </section>
-
-        <section class="panel" id="reportEntriesPanel" aria-labelledby="reportEntriesHeading" hidden>
-          <h2 id="reportEntriesHeading">Valores por jogo</h2>
-          <p class="helper">Edite um registro para informar quanto pagou ou o prêmio que recebeu.</p>
-          <div class="report-table-wrap" tabindex="0" aria-label="Tabela de valores por jogo">
-            <table class="comparison-table">
-              <thead><tr><th scope="col">Concurso</th><th scope="col">Acertos</th><th scope="col">Gasto</th><th scope="col">Prêmio</th><th scope="col">Ação</th></tr></thead>
-              <tbody id="reportRows"></tbody>
-            </table>
-          </div>
-          <button class="ghost more-button" id="reportMore" type="button" hidden>Mostrar mais jogos</button>
-        </section>
       </section>
 
       <section class="screen" id="ajustes" data-screen aria-labelledby="settingsHeading" hidden>
@@ -514,7 +545,7 @@
     </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=20").catch((error) => {
+      import("./app.js?v=21").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";

@@ -4,7 +4,7 @@ import { diaryEntryKey, getPlayedGames, setPlayedGames } from "./diary.js?v=20";
 import { copyNumbersButton } from "./field-actions.js?v=17";
 import { renderReportCharts } from "./report-charts.js?v=18";
 
-const ROWS_PER_PAGE = 30;
+const ROWS_PER_PAGE = 6;
 const REQUEST_BATCH = 4;
 const BANKROLL_PREFIX = "lotofacil-bankroll-";
 const PERIOD_LABELS = { week: "Semana", month: "Mês", year: "Ano" };
@@ -38,19 +38,32 @@ function metric(value, label, detail = "") {
   return `<div><small>${label}</small><strong>${value}</strong>${detail ? `<small>${detail}</small>` : ""}</div>`;
 }
 
+function paginate(items, page, prefix, nextId = `${prefix}More`) {
+  const pageCount = Math.max(1, Math.ceil(items.length / ROWS_PER_PAGE));
+  const index = Math.max(0, Math.min(page, pageCount - 1));
+  $(`${prefix}Pages`).hidden = pageCount === 1;
+  $(`${prefix}Less`).disabled = index === 0;
+  $(nextId).disabled = index === pageCount - 1;
+  $(`${prefix}PageStatus`).textContent = `${index + 1} de ${pageCount}`;
+  const start = index * ROWS_PER_PAGE;
+  return { index, visible: items.slice(start, start + ROWS_PER_PAGE) };
+}
+
 function renderTotals({ totals, hitCounts }, fetchingCount) {
   const { games, spentCents, prizeCents, confirmedSpentCents, estimatedSpentCents, confirmedPrizeCents,
     officialPrizeCents, knownSpent, knownPrize, unavailableSpend, unknownPrize, pendingGames,
     winningGames, settledGames, balanceCents, balanceStatus } = totals;
   $("reportTotals").innerHTML = [
-    metric(money(games && !knownSpent ? null : spentCents), "Gastos apurados",
-      `${money(confirmedSpentCents)} confirmados · ${money(estimatedSpentCents)} estimados`),
-    metric(money(games && !knownPrize ? null : prizeCents), "Prêmios apurados",
-      `${money(confirmedPrizeCents)} recebidos · ${money(officialPrizeCents)} em rateio`),
     metric(signedMoney(balanceCents), "Resultado do período", BALANCE_LABELS[balanceStatus]),
-    metric(integer.format(games), "Jogos no período", `${integer.format(settledGames)} com resultado`),
-    metric(integer.format(winningGames), "Jogos com 11 a 15 acertos"),
+    metric(money(games && !knownSpent ? null : spentCents), "Gastos apurados"),
+    metric(money(games && !knownPrize ? null : prizeCents), "Prêmios apurados"),
   ].join("");
+  $("reportActivity").textContent = games
+    ? `${integer.format(games)} ${games === 1 ? "jogo" : "jogos"} · ${integer.format(settledGames)} com resultado · ${integer.format(winningGames)} com 11 a 15 acertos`
+    : "";
+  $("reportTotalsDetails").hidden = games === 0;
+  $("reportSpentBreakdown").textContent = `Gastos pagos de ${money(confirmedSpentCents)} e estimados em ${money(estimatedSpentCents)}.`;
+  $("reportPrizeBreakdown").textContent = `Prêmios recebidos de ${money(confirmedPrizeCents)} e previstos pelo rateio da Caixa de ${money(officialPrizeCents)}.`;
 
   const notes = [];
   if (!games) notes.push("Nenhum jogo do Diário neste período.");
@@ -81,23 +94,29 @@ function renderHitDialog(rows, points) {
   `).join("");
 }
 
-function renderRows(rows, limit) {
-  $("reportEntriesPanel").hidden = rows.length === 0;
-  $("reportMore").hidden = rows.length <= limit;
+function renderRows(rows, page) {
+  const { index, visible } = paginate(rows, page, "reportGames", "reportMore");
+  $("reportGamesEmpty").hidden = rows.length > 0;
   const prizeLabels = { confirmed: "Recebido informado", official: "Rateio da Caixa", unavailable: "Rateio indisponível", pending: "Resultado pendente" };
-  $("reportRows").innerHTML = rows.slice(0, limit).map((row) => `
-    <tr>
-      <th scope="row"><a href="#concursos/${row.entry.targetContest}">${row.entry.targetContest}</a><br><small>${formatDate(row.date)}</small></th>
-      <td>${row.points ?? "Pendente"}</td>
-      <td>${money(row.spentCents)}${row.spentCents === null ? "<br><small>Sem valor informado</small>" : row.spentConfirmed ? "" : "<br><small>Estimado</small>"}</td>
-      <td>${money(row.prizeCents)}${prizeLabels[row.prizeSource] ? `<br><small>${prizeLabels[row.prizeSource]}</small>` : ""}</td>
-      <td><div class="copy-row">
+  $("reportRows").innerHTML = visible.map((row) => `
+    <li class="report-game">
+      <div class="report-game-info">
+        <div><a href="#concursos/${row.entry.targetContest}">Concurso ${row.entry.targetContest}</a>
+          <time datetime="${row.date}">${formatDate(row.date)}</time></div>
+        <strong>${row.points === null ? "Pendente" : `${row.points} acertos`}</strong>
+      </div>
+      <dl class="report-game-amounts">
+        <div><dt>Gasto</dt><dd>${money(row.spentCents)}${row.spentCents === null ? "<small>Sem valor informado</small>" : row.spentConfirmed ? "" : "<small>Estimado</small>"}</dd></div>
+        <div><dt>Prêmio</dt><dd>${money(row.prizeCents)}${prizeLabels[row.prizeSource] ? `<small>${prizeLabels[row.prizeSource]}</small>` : ""}</dd></div>
+      </dl>
+      <div class="report-game-actions">
         ${copyNumbersButton(row.entry.numbers, `Copiar jogo do concurso ${row.entry.targetContest}`)}
         <button class="ghost" type="button" data-report-edit="${diaryEntryKey(row.entry)}"
           aria-label="Editar valores do jogo no concurso ${row.entry.targetContest}">Editar</button>
-      </div></td>
-    </tr>
+      </div>
+    </li>
   `).join("");
+  return index;
 }
 
 function readAmount(input) {
@@ -119,31 +138,32 @@ function openingForMonth(month) {
   }
 }
 
-function renderBankroll(statement, report, limit) {
+function renderBankroll(statement, report, page) {
   $("reportBankDetails").hidden = !statement;
-  if (!statement) return;
+  if (!statement) return 0;
   const { openingCents, closingCents, entries, status } = statement;
+  const { index, visible } = paginate(entries, page, "reportBank");
   const { games, spentCents, prizeCents, knownSpent, knownPrize, balanceCents } = report.totals;
   $("reportBankTotals").innerHTML = [
-    metric(money(openingCents), "Saldo inicial"),
-    metric(money(games && !knownSpent ? null : spentCents), "Débitos apurados"),
-    metric(money(games && !knownPrize ? null : prizeCents), "Créditos apurados"),
-    metric(signedMoney(balanceCents), "Resultado do mês", BALANCE_LABELS[status]),
     metric(signedMoney(closingCents), "Saldo da banca", BALANCE_LABELS[status]),
+    metric(money(openingCents), "Saldo inicial"),
+    metric(signedMoney(balanceCents), "Resultado do mês"),
+    metric(money(games && !knownSpent ? null : spentCents), "Débitos"),
+    metric(money(games && !knownPrize ? null : prizeCents), "Créditos"),
   ].join("");
   $("reportBankNote").textContent = status === "partial"
-    ? "Saldo parcial. Lançamentos pendentes ou sem valor aparecem no extrato e só alteram o saldo quando tiverem um valor."
-    : "O extrato usa o valor informado no Diário ou o gasto estimado e o rateio da Caixa, quando disponíveis.";
+    ? "O saldo inclui os lançamentos com valor disponível."
+    : "";
   $("reportBankEmpty").hidden = entries.length > 0;
   $("reportBankTable").hidden = entries.length === 0;
-  $("reportBankMore").hidden = entries.length <= limit;
-  $("reportBankRows").innerHTML = entries.slice(0, limit).map((row) => `
+  $("reportBankRows").innerHTML = visible.map((row) => `
     <tr>
       <th scope="row">${row.label}<br><small>${formatDate(row.date)} · <a href="#concursos/${row.contest}">Concurso ${row.contest}</a></small></th>
       <td>${signedMoney(row.amountCents)}<br><small>${row.source}</small></td>
       <td>${signedMoney(row.balanceCents)}${row.status === "complete" ? "" : `<br><small>${BALANCE_LABELS[row.status]}</small>`}</td>
     </tr>
   `).join("");
+  return index;
 }
 
 export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
@@ -157,10 +177,10 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
   let queue = [];
   let fetching = false;
   let rows = [];
-  let rowLimit = ROWS_PER_PAGE;
+  let gamePage = 0;
   let editingKey = null;
   let monthKey = null;
-  let bankLimit = ROWS_PER_PAGE;
+  let bankPage = 0;
   let activeHit = null;
   let currentExport;
   let currentBankExport;
@@ -201,7 +221,10 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
       period = reportPeriod(kind.value, dateInput.value);
     }
     const dateNote = "Os jogos entram na data do sorteio. Enquanto o resultado estiver pendente, usamos a data do registro.";
-    $("reportRange").textContent = `${formatDate(period.start)} a ${formatDate(period.end)}. ${dateNote}`;
+    const start = formatDate(period.start);
+    const end = formatDate(period.end);
+    const range = period.start.slice(0, 4) === period.end.slice(0, 4) ? `${start.slice(0, 5)} a ${end}` : `${start} a ${end}`;
+    $("reportRange").textContent = `${PERIOD_LABELS[kind.value]} · ${range}`;
     const diary = getPlayedGames();
     const draws = getDraws();
     const report = buildDiaryReport(diary, draws, period, payouts);
@@ -209,10 +232,12 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
     const bankPeriod = reportPeriod("month", dateInput.value || today());
     const month = bankPeriod.start.slice(0, 7);
     const opening = openingForMonth(month);
+    $("reportBankEditLabel").textContent = opening === null ? "Definir saldo inicial" : "Editar saldo inicial";
     if (month !== monthKey) {
       monthKey = month;
       bankInput.value = opening === null ? "" : (opening / 100).toFixed(2);
-      bankLimit = ROWS_PER_PAGE;
+      $("reportBankEdit").open = opening === null;
+      bankPage = 0;
       $("reportBankStatus").textContent = "";
     }
     $("reportBankMonth").textContent = monthName.format(new Date(`${bankPeriod.start}T00:00:00Z`));
@@ -229,8 +254,9 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
     $("reportRetry").hidden = ![...neededPayouts].some((contest) => failed.has(contest) || payouts.has(contest));
     $("reportRetry").disabled = !$("reportRetry").hidden && awaiting.length > 0;
     renderReportCharts(report);
-    renderRows(rows, rowLimit);
-    renderBankroll(bankroll, bankReport, bankLimit);
+    $("reportChartsEmpty").hidden = rows.length > 0;
+    gamePage = renderRows(rows, gamePage);
+    bankPage = renderBankroll(bankroll, bankReport, bankPage);
     if (hitDialog.open) renderHitDialog(rows, activeHit);
     currentExport = { report, options: { period, notes: [dateNote, ...notes], periodLabel: PERIOD_LABELS[kind.value], bankroll } };
     currentBankExport = bankroll ? { report: bankReport, options: {
@@ -241,7 +267,7 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
   }
 
   function filterChanged() {
-    rowLimit = ROWS_PER_PAGE;
+    gamePage = 0;
     render();
   }
 
@@ -265,6 +291,8 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
       return;
     }
     bankInput.value = (opening / 100).toFixed(2);
+    $("reportBankEdit").open = false;
+    $("reportBankEditLabel").focus();
     render();
     status.textContent = "Saldo inicial salvo para este mês.";
   }
@@ -335,10 +363,8 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
     dateInput.value = today();
     filterChanged();
   });
-  $("reportMore").addEventListener("click", () => {
-    rowLimit += ROWS_PER_PAGE;
-    renderRows(rows, rowLimit);
-  });
+  $("reportMore").addEventListener("click", () => { gamePage = renderRows(rows, gamePage + 1); });
+  $("reportGamesLess").addEventListener("click", () => { gamePage = renderRows(rows, gamePage - 1); });
   $("reportRetry").addEventListener("click", () => {
     for (const contest of neededPayouts) {
       failed.delete(contest);
@@ -350,7 +376,11 @@ export function createDiaryReport({ getDraws, onDiaryChanged, notify }) {
   $("reportBankExport").addEventListener("click", () => void exportPdf(currentBankExport));
   $("reportBankForm").addEventListener("submit", saveBankroll);
   $("reportBankMore").addEventListener("click", () => {
-    bankLimit += ROWS_PER_PAGE;
+    bankPage += 1;
+    render();
+  });
+  $("reportBankLess").addEventListener("click", () => {
+    bankPage -= 1;
     render();
   });
   $("reportHits").addEventListener("click", (event) => {

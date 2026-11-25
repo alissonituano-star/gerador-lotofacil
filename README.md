@@ -62,7 +62,7 @@ Se voce perdeu o horario automatico, force manualmente com:
 npm run force
 ```
 
-No modo local (`npm run dev` ou `npm run mobile`), o botão `Consultar resultados` em `Estatísticas` também sincroniza o arquivo de histórico no computador.
+Na aba `Conferir`, use `Consultar Caixa` para uma consulta imediata. No modo local, `npm run update` também sincroniza o arquivo de histórico no computador.
 
 ## Rodar online pelo GitHub Pages
 
@@ -108,9 +108,9 @@ Ele executa `npm run sync`, que baixa os resultados pelo seu computador, cria co
 - Modo `Base 20 amarrada`, criando jogos dentro de uma base forte de 20 dezenas.
 - Filtro anti-jogo-fraco para soma, paridade, altos/baixos, sequencias e concentracao.
 - Diário local de jogos, com registro manual, conferência automática de acertos e exportação e importação de backup JSON.
-- Aba `Conferir`, com resultado por concurso, comparação com os jogos do Diário e resumo de paridade, soma, dezenas de 01 a 13 e repetição do sorteio anterior.
+- Aba `Conferir` com resultado e simulação em seções separadas. Em `Resultado`, abra `Perfil e volante` para ver paridade, soma, dezenas de 01 a 13 e repetição do sorteio anterior.
 - Simulação de combinações de 15 dezenas no histórico completo ou nos concursos registrados no Diário, com contagem por faixa de 11 a 15 acertos.
-- Aba `Relatório`, com filtros por semana, mês e ano, gráficos de gastos, prêmios e saldo, acertos por faixa e valores por jogo. Usa o rateio da Caixa nos jogos premiados e permite registrar o valor efetivamente pago e recebido.
+- Aba `Relatório` com filtros por semana, mês e ano e seções de resumo, banca, gráficos e jogos. Usa o rateio da Caixa nos jogos premiados e permite registrar o valor efetivamente pago e recebido.
 
 ## Estrategia recomendada
 

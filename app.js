@@ -4,7 +4,7 @@ import { buildRatingProfile, MIN_DAILY_RATING, rateGame, RATING_LEVELS, RATING_W
 import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
 import { compareContest } from "./contest-comparison.js?v=14";
 import { simulateHistoricalGame } from "./contest-simulation.js?v=15";
-import { createDiaryReport } from "./report-screen.js?v=20";
+import { createDiaryReport } from "./report-screen.js?v=21";
 import { copyNumbersButton, copyText, installFieldActions } from "./field-actions.js?v=17";
 import { fetchCaixaDraws, mergeCaixaDraws } from "./caixa-results.js?v=19";
 import { installPushSettings } from "./push-settings.js?v=20";
@@ -33,10 +33,52 @@ const $ = (selector) => document.querySelector(selector);
 const screens = [...document.querySelectorAll("[data-screen]")];
 const tabs = [...document.querySelectorAll("[data-tab]")];
 const ratingProfiles = new Map();
+const selectView = new Map();
+
+function setupScreenViews() {
+  for (const switcher of document.querySelectorAll("[data-view-switcher]")) {
+    const list = switcher.querySelector(".screen-switcher");
+    const buttons = [...list.querySelectorAll("[data-view-target]")];
+    const panelFor = (button) => document.getElementById(button.dataset.viewTarget);
+    function select(button, focus) {
+      for (const tab of buttons) {
+        const selected = tab === button;
+        tab.setAttribute("aria-selected", String(selected));
+        tab.tabIndex = selected ? 0 : -1;
+        panelFor(tab).hidden = !selected;
+      }
+      if (focus) button.focus({ preventScroll: true });
+    }
+
+    list.setAttribute("role", "tablist");
+    for (const button of buttons) {
+      const panel = panelFor(button);
+      button.id ||= `${panel.id}Tab`;
+      button.setAttribute("role", "tab");
+      button.setAttribute("aria-controls", panel.id);
+      button.removeAttribute("aria-pressed");
+      panel.setAttribute("role", "tabpanel");
+      panel.setAttribute("aria-labelledby", button.id);
+      button.addEventListener("click", () => select(button));
+      selectView.set(panel.id, (focus = false) => select(button, focus));
+    }
+    list.addEventListener("keydown", (event) => {
+      const index = buttons.indexOf(event.target);
+      if (index < 0) return;
+      const keys = { Home: 0, End: buttons.length - 1, ArrowLeft: (index + buttons.length - 1) % buttons.length,
+        ArrowRight: (index + 1) % buttons.length };
+      if (!Object.hasOwn(keys, event.key)) return;
+      event.preventDefault();
+      select(buttons[keys[event.key]], true);
+    });
+    select(buttons.find((button) => !panelFor(button).hidden) ?? buttons[0]);
+  }
+}
 
 function renderScreen(focusHeading = false) {
   const [target, selectedContest] = window.location.hash.slice(1).split("/");
   if (target === "conteudo") return;
+  if (target === "estatisticas") window.history.replaceState(null, "", "#jogo");
   const screen = screens.find(({ id }) => id === target) ?? screens[0];
   const screenChanged = screen.hidden;
   for (const item of screens) item.hidden = item !== screen;
@@ -44,11 +86,8 @@ function renderScreen(focusHeading = false) {
     if (tab.dataset.tab === screen.id) tab.setAttribute("aria-current", "page");
     else tab.removeAttribute("aria-current");
   }
-  if (screen.id === "estatisticas") {
-    renderDailyBenchmark();
-    renderForecastAudit();
-  }
   if (screen.id === "concursos") {
+    if (screenChanged || selectedContest) selectView.get("comparisonResultView")?.();
     if (screenChanged || selectedContest) state.comparisonCleared = false;
     renderContestComparison(true);
     if (screenChanged) refreshHistoricalSimulation();
@@ -800,9 +839,16 @@ function comparisonContest() {
 
 function openContestComparison(contest) {
   state.comparisonCleared = false;
+  const search = $("#contestSearchDetails");
+  if (search.open) {
+    search.open = false;
+    if (search.contains(document.activeElement)) search.querySelector("summary").focus({ preventScroll: true });
+  }
   const hash = `#concursos/${contest}`;
-  if (window.location.hash === hash) renderContestComparison(true);
-  else window.location.hash = hash;
+  if (window.location.hash === hash) {
+    selectView.get("comparisonResultView")?.();
+    renderContestComparison(true);
+  } else window.location.hash = hash;
 }
 
 function renderContestComparison(updateInput = false) {
@@ -841,20 +887,35 @@ function renderContestComparison(updateInput = false) {
     ? `Concurso ${contest} · ${draw.date}`
     : `Concurso ${contest} · Aguardando resultado na base`;
 
+  const board = $("#drawBoard");
+  const sameContest = board.dataset.contest === String(contest);
+  const profileOpen = sameContest && board.querySelector(".draw-details")?.open;
   const drawn = new Set(draw?.numbers);
-  $("#drawBoard").innerHTML = draw ? `
-    <ol class="draw-board" role="list" aria-label="Volante do concurso ${contest}">
-      ${NUMBERS.map((number) => {
-        const selected = drawn.has(number);
-        return `<li class="draw-cell${selected ? " is-drawn" : ""}" aria-label="${formatNumber(number)}${selected ? ", sorteada" : ""}">${formatNumber(number)}</li>`;
-      }).join("")}
+  board.innerHTML = draw ? `
+    <ol class="draw-numbers" role="list" aria-label="Dezenas sorteadas">
+      ${draw.numbers.map((number) => `<li>${formatNumber(number)}</li>`).join("")}
     </ol>
-    <div class="section-heading">
-      <p class="helper">As dezenas em roxo saíram no sorteio.</p>
+    <div class="draw-actions">
       ${copyNumbersButton(draw.numbers, `Copiar dezenas sorteadas no concurso ${contest}`, "Copiar sorteadas")}
     </div>
-    ${renderDrawProfile(draw, state.analysis.sorted[drawIndex + 1])}
+    <details class="draw-details"${profileOpen ? " open" : ""}>
+      <summary>Perfil e volante</summary>
+      ${renderDrawProfile(draw, state.analysis.sorted[drawIndex + 1])}
+      <ol class="draw-board" role="list" aria-label="Volante do concurso ${contest}">
+        ${NUMBERS.map((number) => {
+          const selected = drawn.has(number);
+          return `<li class="draw-cell${selected ? " is-drawn" : ""}" aria-label="${formatNumber(number)}${selected ? ", sorteada" : ""}">${formatNumber(number)}</li>`;
+        }).join("")}
+      </ol>
+    </details>
   ` : "";
+  board.dataset.contest = contest;
+
+  const playCount = `${plays.length} ${plays.length === 1 ? "jogo" : "jogos"}`;
+  const best = draw && plays.length ? Math.max(...plays.map(({ hits }) => hits.length)) : null;
+  $("#contestPlaysSummary").textContent = best === null ? playCount
+    : `${playCount} · ${plays.length > 1 ? "melhor: " : ""}${best} ${best === 1 ? "acerto" : "acertos"}`;
+  if (!sameContest) $("#playedComparison").open = false;
 
   $("#contestPlays").innerHTML = plays.length
     ? renderComparedPlays(plays, Boolean(draw))
@@ -1466,6 +1527,10 @@ $("#contestSearch").addEventListener("submit", (event) => {
 $("#previousContest").addEventListener("click", () => openContestComparison(comparisonContest() - 1));
 $("#nextContestButton").addEventListener("click", () => openContestComparison(comparisonContest() + 1));
 $("#historicalSimulation").addEventListener("submit", startHistoricalSimulation);
+$("#simulationMatches").addEventListener("click", (event) => {
+  const link = event.target.closest("a");
+  if (link?.hash === window.location.hash) selectView.get("comparisonResultView")?.(true);
+});
 $("#simulationDiary").addEventListener("change", (event) => {
   const entry = getPlayedGames().find((row) => diaryEntryKey(row) === event.currentTarget.value);
   if (entry) $("#simulationNumbers").value = entry.numbers.map(formatNumber).join(" ");
@@ -1488,6 +1553,7 @@ const refreshDiaryReport = createDiaryReport({
   notify: showToast,
 });
 installFieldActions({ onClear: clearSearchField, notify: showToast });
+setupScreenViews();
 renderScreen();
 renderRatingLegends();
 renderChanceCalculator();

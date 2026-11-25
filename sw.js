@@ -1,12 +1,12 @@
 importScripts("./notification-diary.js?v=20", "./draw-notification.js?v=20");
 
 const CACHE_PREFIX = "gerador-lotofacil-";
-const CACHE_NAME = `${CACHE_PREFIX}v20`;
+const CACHE_NAME = `${CACHE_PREFIX}v21`;
 const APP_FILES = [
   "./",
   "./index.html",
-  "./styles.css?v=18",
-  "./app.js?v=20",
+  "./styles.css?v=21",
+  "./app.js?v=21",
   "./push-settings.js?v=20",
   "./notification-config.js?v=20",
   "./notification-diary.js?v=20",
@@ -14,7 +14,7 @@ const APP_FILES = [
   "./caixa-results.js?v=19",
   "./clipboard.js?v=17",
   "./field-actions.js?v=17",
-  "./report-screen.js?v=20",
+  "./report-screen.js?v=21",
   "./report-charts.js?v=18",
   "./report-pdf.js?v=18",
   "./assets/jspdf.umd.min.js?v=18",
