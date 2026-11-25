@@ -1,10 +1,32 @@
 {
   "source": "https://servicebus2.caixa.gov.br/portaldeloterias/api/lotofacil",
-  "updated_at": "2026-11-24T07:06:36.025Z",
-  "total_contests": 3836,
-  "latest_contest": 3836,
+  "updated_at": "2026-11-25T12:55:38.402Z",
+  "total_contests": 3837,
+  "latest_contest": 3837,
   "oldest_contest": 1,
   "results": [
+    {
+      "contest": 3837,
+      "weekday": "Terça-feira",
+      "date": "24/11/2026",
+      "numbers": [
+        3,
+        4,
+        5,
+        7,
+        8,
+        10,
+        11,
+        14,
+        16,
+        17,
+        20,
+        22,
+        23,
+        24,
+        25
+      ]
+    },
     {
       "contest": 3836,
       "weekday": "Segunda-feira",
