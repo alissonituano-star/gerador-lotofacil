@@ -1,12 +1,13 @@
 import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyGame } from "./daily-model.js?v=18";
-import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=16";
+import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, syncNotificationDiary, validNumbers } from "./diary.js?v=20";
 import { buildRatingProfile, MIN_DAILY_RATING, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=15";
 import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
 import { compareContest } from "./contest-comparison.js?v=14";
 import { simulateHistoricalGame } from "./contest-simulation.js?v=15";
-import { createDiaryReport } from "./report-screen.js?v=18";
+import { createDiaryReport } from "./report-screen.js?v=20";
 import { copyNumbersButton, copyText, installFieldActions } from "./field-actions.js?v=17";
 import { fetchCaixaDraws, mergeCaixaDraws } from "./caixa-results.js?v=19";
+import { installPushSettings } from "./push-settings.js?v=20";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
 const DATA_REFRESH_INTERVAL = 60_000;
@@ -1346,11 +1347,16 @@ async function installApp() {
 }
 
 function setupPwa() {
+  let worker;
   if ("serviceWorker" in navigator) {
-    navigator.serviceWorker.register("sw.js", { updateViaCache: "none" }).catch(() => {
-      showToast("O modo offline está indisponível.");
-    });
+    worker = navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+      .then(() => navigator.serviceWorker.ready)
+      .catch(() => {
+        showToast("O modo offline está indisponível.");
+        return null;
+      });
   }
+  installPushSettings({ worker, prepareDiary: syncNotificationDiary, notify: showToast, isIos: isIos() });
 
   window.addEventListener("beforeinstallprompt", (event) => {
     event.preventDefault();

@@ -1,0 +1,67 @@
+name: Avisar sorteio da Lotofácil
+
+on:
+  schedule:
+    # Brasília: 21h às 22h57, e domingo de 11h às 12h57.
+    - cron: "2-57/5 0,1 * * *"
+    - cron: "2-57/5 14,15 * * 0"
+    - cron: "17 2-13,16-23 * * *"
+    - cron: "17 14,15 * * 1-6"
+  workflow_dispatch:
+    inputs:
+      test:
+        description: Enviar um aviso de teste
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: lotofacil-draw-notification
+  cancel-in-progress: false
+
+jobs:
+  notify:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Baixar código
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 # v5.0.0
+        with:
+          persist-credentials: false
+      - name: Consultar Caixa
+        id: prepare
+        env:
+          LOTTERY_PUSH_PRIVATE: ${{ secrets.LOTTERY_PUSH_PRIVATE }}
+          LOTTERY_PUSH_DEVICE: ${{ secrets.LOTTERY_PUSH_DEVICE }}
+          LOTTERY_PUSH_TEST: ${{ inputs.test && '1' || '0' }}
+        run: |
+          if [ -z "$LOTTERY_PUSH_PRIVATE" ] || [ -z "$LOTTERY_PUSH_DEVICE" ]; then
+            echo "Avisos aguardando o pareamento do celular."
+            exit 0
+          fi
+          node scripts/notify-draw.mjs prepare
+      - name: Verificar se o concurso já foi avisado
+        if: steps.prepare.outputs.cache-key != ''
+        id: sent
+        uses: actions/cache/restore@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/lotofacil-draw-sent
+          key: ${{ steps.prepare.outputs.cache-key }}
+      - name: Preparar envio
+        if: steps.prepare.outputs.ready == 'true' && steps.sent.outputs.cache-hit != 'true'
+        run: npm ci --ignore-scripts --no-audit --no-fund
+      - name: Enviar aviso
+        if: steps.prepare.outputs.ready == 'true' && steps.sent.outputs.cache-hit != 'true'
+        env:
+          LOTTERY_PUSH_PRIVATE: ${{ secrets.LOTTERY_PUSH_PRIVATE }}
+          LOTTERY_PUSH_DEVICE: ${{ secrets.LOTTERY_PUSH_DEVICE }}
+        run: node scripts/notify-draw.mjs send
+      - name: Registrar envio
+        if: steps.prepare.outputs.cache-key != '' && steps.sent.outputs.cache-hit != 'true'
+        uses: actions/cache/save@a7833574556fa59680c1b7cb190c1735db73ebf0 # v5.0.0
+        with:
+          path: ${{ runner.temp }}/lotofacil-draw-sent
+          key: ${{ steps.prepare.outputs.cache-key }}

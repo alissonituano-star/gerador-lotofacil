@@ -103,6 +103,7 @@
           </div>
           <p id="caixaStatus" class="helper" role="status">O app consulta a Caixa enquanto estiver aberto com internet.</p>
           <a href="https://www.youtube.com/playlist?list=PLjyojW8y_HLuawIABZk5JtaISbbOj_B5W" target="_blank" rel="noopener">Sorteios no canal da Caixa</a>
+          <a class="more-button" href="#ajustes">Configurar avisos de sorteio</a>
         </section>
         <div class="panel contest-toolbar">
           <form id="contestSearch" class="contest-search">
@@ -452,6 +453,19 @@
           <p class="helper" id="strategyNote"></p>
           <button class="primary more-button" id="generate">Ver jogo do dia</button>
         </section>
+        <section class="panel" aria-labelledby="pushHeading">
+          <div class="section-heading">
+            <h2 id="pushHeading">Avisos de sorteio</h2>
+            <button class="primary" id="pushActivate" type="button" disabled>Ativar avisos</button>
+            <button class="ghost" id="pushDeactivate" type="button" hidden>Desativar avisos</button>
+          </div>
+          <p class="helper">Receba o resultado da Caixa mesmo com o app fechado. Seus acertos são calculados no aparelho.</p>
+          <p class="helper" id="pushStatus" role="status">Verificando se este aparelho aceita avisos…</p>
+          <div id="pushPairing" hidden>
+            <p class="helper">Copie o código e envie na conversa de configuração para vincular este aparelho. Isso só é necessário uma vez.</p>
+            <button class="ghost more-button" id="pushCopyPairing" type="button">Copiar código de ativação</button>
+          </div>
+        </section>
         <section class="panel" id="installPanel" hidden>
           <div class="section-heading">
             <h2>Instalar na tela inicial</h2>
@@ -500,7 +514,7 @@
     </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=19").catch((error) => {
+      import("./app.js?v=20").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";

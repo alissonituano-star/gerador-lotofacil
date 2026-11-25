@@ -1,6 +1,6 @@
 import { fetchContestPayouts } from "./contest-payout.js?v=16";
 import { buildBankrollStatement, buildDiaryReport, moveReportDate, reportPeriod } from "./diary-report.js?v=18";
-import { diaryEntryKey, getPlayedGames, setPlayedGames } from "./diary.js?v=16";
+import { diaryEntryKey, getPlayedGames, setPlayedGames } from "./diary.js?v=20";
 import { copyNumbersButton } from "./field-actions.js?v=17";
 import { renderReportCharts } from "./report-charts.js?v=18";
 

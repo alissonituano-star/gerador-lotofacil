@@ -77,6 +77,12 @@ Depois de subir para um repositorio no GitHub:
 
 O workflow tenta atualizar a base duas vezes por hora. Com o histórico salvo, ele consulta primeiro a Caixa para preencher os concursos que faltam. O Lotorama fornece a base inicial e serve de alternativa quando a Caixa está indisponível. Se a consulta falhar, o site continua com o último histórico salvo.
 
+### Avisos de sorteio
+
+Em `Ajustes`, toque em `Ativar avisos` no celular e autorize as notificações. No iPhone, abra o app instalado na Tela de Início. Copie o código de ativação para vincular o aparelho ao workflow `Avisar sorteio da Lotofácil`. O aviso mostra o concurso, as dezenas e o melhor acerto que o app encontrar no Diário local.
+
+O workflow recebe `LOTTERY_PUSH_PRIVATE` com as duas chaves privadas que correspondem às chaves públicas de `notification-config.js`, em JSON com `vapidPrivateKey` e `pairingPrivateKey`. O segredo `LOTTERY_PUSH_DEVICE` recebe o código criptografado do aparelho. Para confirmar a configuração, execute o workflow manualmente com a opção de teste. As chaves privadas e o código de ativação ficam nos segredos do repositório. O agendamento roda com mais frequência nos horários de sorteio.
+
 O metodo mais confiavel para atualizar automaticamente no GitHub e deixar o Windows rodar este arquivo uma vez por dia:
 
 ```text

@@ -1,3 +1,5 @@
+import "./notification-diary.js?v=20";
+
 const DIARY_FORMAT = "gerador-lotofacil-diario";
 const STORAGE_KEY = "lotofacil-played-games-v1";
 
@@ -12,7 +14,16 @@ export function getPlayedGames() {
 
 export function setPlayedGames(entries) {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  void globalThis.lotofacilNotificationDiary.sync(entries).catch(() => {});
 }
+
+export function syncNotificationDiary() {
+  return globalThis.lotofacilNotificationDiary.sync(getPlayedGames());
+}
+
+globalThis.addEventListener?.("storage", (event) => {
+  if (event.key === STORAGE_KEY || event.key === null) void syncNotificationDiary().catch(() => {});
+});
 
 export function gameKey(numbers) {
   return [...numbers].sort((a, b) => a - b).map((number) => String(number).padStart(2, "0")).join("-");
