@@ -10,7 +10,7 @@
     <link rel="manifest" href="manifest.webmanifest">
     <link rel="icon" href="assets/icon.svg?v=10" type="image/svg+xml">
     <link rel="apple-touch-icon" href="assets/icon-192.png?v=10">
-    <link rel="stylesheet" href="styles.css?v=17">
+    <link rel="stylesheet" href="styles.css?v=18">
   </head>
   <body>
     <a class="skip-link" href="#conteudo">Ir para o conteúdo</a>
@@ -266,9 +266,12 @@
       </section>
 
       <section class="screen" id="relatorio" data-screen aria-labelledby="reportHeading" hidden>
-        <div class="screen-heading">
-          <h1 id="reportHeading" tabindex="-1">Relatório</h1>
-          <p class="helper">Acompanhe o que gastou, seus acertos e o saldo dos jogos registrados no Diário.</p>
+        <div class="screen-heading section-heading">
+          <div>
+            <h1 id="reportHeading" tabindex="-1">Relatório</h1>
+            <p class="helper">Acompanhe gastos, prêmios e acertos dos jogos registrados no Diário.</p>
+          </div>
+          <button class="primary" id="reportExport" type="button" disabled>Exportar PDF</button>
         </div>
         <section class="panel" aria-labelledby="reportPeriodHeading">
           <h2 id="reportPeriodHeading">Período</h2>
@@ -307,34 +310,61 @@
           <p class="helper" id="reportNote" role="status"></p>
         </section>
 
+        <section class="panel report-bank" aria-labelledby="reportBankHeading">
+          <div class="section-heading">
+            <h2 id="reportBankHeading">Banca mensal</h2>
+            <p id="reportBankMonth" class="helper"></p>
+          </div>
+          <p class="helper">Defina quanto reservou para apostar no mês indicado. O extrato usa a data do sorteio ou, enquanto o resultado estiver pendente, a data do registro.</p>
+          <form id="reportBankForm" class="report-bank-form">
+            <div class="field-group">
+              <label for="reportBankOpening">Saldo inicial em R$</label>
+              <div class="field-with-actions" data-field-tools="copy clear" data-field-label="saldo inicial da banca">
+                <input id="reportBankOpening" type="number" min="0" max="1000000000" step="0.01" inputmode="decimal" placeholder="100,00" required>
+              </div>
+            </div>
+            <button class="primary" type="submit">Salvar saldo inicial</button>
+          </form>
+          <p class="helper" id="reportBankStatus" role="status"></p>
+          <div id="reportBankDetails" hidden>
+            <div class="metrics" id="reportBankTotals"></div>
+            <p class="helper" id="reportBankNote"></p>
+            <div class="section-heading">
+              <h3>Extrato do mês</h3>
+              <button class="ghost" id="reportBankExport" type="button">Baixar extrato em PDF</button>
+            </div>
+            <p class="helper" id="reportBankEmpty" hidden>Nenhum lançamento do Diário neste mês.</p>
+            <div class="report-table-wrap" id="reportBankTable" tabindex="0" aria-label="Extrato da banca mensal">
+              <table class="comparison-table">
+                <thead><tr><th scope="col">Lançamento</th><th scope="col">Valor</th><th scope="col">Saldo</th></tr></thead>
+                <tbody id="reportBankRows"></tbody>
+              </table>
+            </div>
+            <button class="ghost more-button" id="reportBankMore" type="button" hidden>Mostrar mais lançamentos</button>
+          </div>
+        </section>
+
         <div class="report-charts" id="reportCharts" hidden>
           <section class="panel" aria-labelledby="reportCashHeading">
             <h2 id="reportCashHeading">Gastos e prêmios</h2>
             <div class="report-chart-key">
               <span><i class="report-spent" aria-hidden="true"></i>Gastos</span>
-              <span><i class="report-prize" aria-hidden="true"></i>Prêmios apurados</span>
+              <span><i class="report-prize" aria-hidden="true"></i>Recebido</span>
+              <span><i class="report-official" aria-hidden="true"></i>Rateio da Caixa</span>
             </div>
-            <div class="report-chart-wrap" tabindex="0" aria-label="Gráfico de gastos e prêmios">
-              <div class="report-chart" id="reportCashChart"></div>
-            </div>
-            <details>
-              <summary>Ver valores do gráfico</summary>
-              <table class="comparison-table">
-                <thead><tr><th scope="col">Intervalo</th><th scope="col">Gastos</th><th scope="col">Prêmios</th></tr></thead>
-                <tbody id="reportCashTable"></tbody>
-              </table>
-            </details>
+            <div class="report-chart" id="reportCashChart"></div>
           </section>
           <section class="panel" aria-labelledby="reportBalanceHeading">
             <h2 id="reportBalanceHeading">Saldo acumulado no período</h2>
+            <p class="helper">A cada intervalo, somamos os prêmios apurados e descontamos os gastos desde o início do período. A conta começa em R$ 0,00. O saldo inicial da banca aparece no extrato.</p>
             <div class="balance-chart" id="reportBalanceChart"></div>
           </section>
         </div>
 
         <section class="panel" aria-labelledby="reportHitsHeading">
           <h2 id="reportHitsHeading">Acertos por faixa</h2>
-          <p class="helper">Cada jogo com resultado conta pela sua quantidade exata de acertos.</p>
-          <div class="metrics" id="reportHits"></div>
+          <p class="helper">Cada jogo entra na sua maior faixa de acertos. Toque em uma faixa para ver os concursos.</p>
+          <div class="report-hits" id="reportHits"></div>
         </section>
 
         <section class="panel" id="reportEntriesPanel" aria-labelledby="reportEntriesHeading" hidden>
@@ -424,6 +454,15 @@
       </section>
     </main>
 
+    <dialog id="reportHitDialog" class="report-editor" aria-labelledby="reportHitHeading">
+      <div class="section-heading">
+        <h2 id="reportHitHeading">Acertos</h2>
+        <form method="dialog"><button class="ghost" type="submit">Fechar</button></form>
+      </div>
+      <p id="reportHitEmpty" class="helper" hidden>Nenhum jogo nesta faixa no período selecionado.</p>
+      <ul class="report-hit-contests" id="reportHitContests"></ul>
+    </dialog>
+
     <dialog id="reportEditor" class="report-editor" aria-labelledby="reportEditorHeading">
       <form id="reportEditorForm" class="report-editor-form">
         <h2 id="reportEditorHeading">Editar valores do jogo</h2>
@@ -453,7 +492,7 @@
     </dialog>
     <div class="toast" id="toast" role="status" hidden></div>
     <script type="module">
-      import("./app.js?v=17").catch((error) => {
+      import("./app.js?v=18").catch((error) => {
         console.error(error);
         document.querySelector("#status").textContent = "Falha ao abrir";
         document.querySelector("#gameContest").textContent = "Não consegui abrir o jogo";

@@ -1,10 +1,10 @@
-import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyGame } from "./daily-model.js?v=15";
+import { auditDailyForecast, createDailyGame, FORECAST_START_CONTEST, testDailyGame } from "./daily-model.js?v=18";
 import { decodeDiary, diaryEntryKey, encodeDiary, gameKey, getPlayedGames, mergeDiary, setPlayedGames, validNumbers } from "./diary.js?v=16";
 import { buildRatingProfile, MIN_DAILY_RATING, rateGame, RATING_LEVELS, RATING_WINDOW } from "./game-rating.js?v=15";
 import { combinationCount, coverageForBudget, DRAW_SIZE, POSSIBLE_GAMES, SIMPLE_GAME_CENTS } from "./lottery-math.js?v=13";
 import { compareContest } from "./contest-comparison.js?v=14";
 import { simulateHistoricalGame } from "./contest-simulation.js?v=15";
-import { createDiaryReport } from "./report-screen.js?v=17";
+import { createDiaryReport } from "./report-screen.js?v=18";
 import { copyNumbersButton, copyText, installFieldActions } from "./field-actions.js?v=17";
 
 const NUMBERS = Array.from({ length: 25 }, (_, index) => index + 1);
@@ -574,6 +574,26 @@ function renderRatingLegends() {
   });
 }
 
+function describeDailySelection(game) {
+  const registered = game.registered ? "O Diário já tem um jogo para este concurso. " : "";
+  if (!game.selection) return `${registered}Estas são as dezenas que você registrou.`;
+
+  const { checked, eligibleCount, forecastTop, strongestSignals } = game.selection;
+  const same = game.registered ? "Ele coincide com a sugestão atual. " : "";
+  const rule = `O filtro exige uma combinação inédita no seu Diário e nota mínima de ${MIN_DAILY_RATING}/100.`;
+  if (forecastTop) {
+    return `${registered}${same}As 15 dezenas mais bem colocadas no modelo em teste formaram um jogo que passou pelo filtro. ${rule}`;
+  }
+  const passed = eligibleCount === 1 ? "1 passou" : `${formatInteger.format(eligibleCount)} passaram`;
+  const method = game.forecastEnabled
+    ? "O app comparou trocas de uma dezena e outras combinações usando o modelo em teste."
+    : `O app comparou as frequências dos últimos ${game.shortDraws} e ${game.recentDraws} sorteios com o histórico, avaliou quais pares costumam sair juntos e favoreceu a repetição de dezenas próxima da média.${game.previousCount ? " Também deu preferência a dezenas menos usadas nos seus jogos recentes." : ""}`;
+  const strongest = strongestSignals.length
+    ? ` Nesta combinação, ${strongestSignals.map(formatNumber).join(", ")} se destacaram na análise das frequências.`
+    : "";
+  return `${registered}${same}${method} ${rule} De ${formatInteger.format(checked)} combinações avaliadas, ${passed} pelo filtro. Entre elas, esta teve a maior pontuação de seleção.${strongest}`;
+}
+
 function renderDailyGame(game) {
   if (!game.numbers.length) {
     $("#games").textContent = `A busca terminou sem encontrar um jogo novo com nota ${MIN_DAILY_RATING} ou maior.`;
@@ -586,8 +606,7 @@ function renderDailyGame(game) {
   `;
   $("#insightsHeading").textContent = game.registered ? "Leitura do jogo registrado" : "Leitura da sugestão";
   $("#dailyInsights").innerHTML = `
-    ${game.registered ? "" : `<p class="helper">O Jogo do dia exige nota mínima de ${MIN_DAILY_RATING}/100.</p>`}
-    ${game.forecastEnabled && !game.registered ? '<p class="helper">Seleção orientada pelo modelo prospectivo.</p>' : ""}
+    <p class="helper"><strong>${game.registered && !game.selection ? "Por que este jogo aparece?" : "Por que estas dezenas?"}</strong> ${describeDailySelection(game)}</p>
     <dl class="insights-list">
       <div><dt>Em comum com o último sorteio</dt><dd>${game.drawnRepeat} dezenas</dd></div>
       <div><dt>Média histórica entre sorteios consecutivos</dt><dd>${formatPoints.format(game.averageRepeat)} dezenas</dd></div>
@@ -595,6 +614,7 @@ function renderDailyGame(game) {
         ? `<div><dt>Em comum com seu último jogo</dt><dd>${game.playedRepeat} dezenas</dd></div>`
         : ""}
     </dl>
+    <p class="helper">Em um sorteio justo, cada combinação de 15 dezenas tem a mesma probabilidade.</p>
     <details><summary>Como a nota foi calculada</summary>${ratingBreakdown(rating)}</details>
     ${game.previousCount ? "" : '<p class="helper">Registre o jogo que fizer para personalizar as próximas sugestões.</p>'}
   `;

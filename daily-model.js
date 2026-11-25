@@ -112,9 +112,13 @@ function selectGame(model, contest, diary, profile, forecast = null) {
   const lastPlayed = new Set(recent[0]?.numbers);
   const random = contestRandom(contest);
   let best;
+  let checked = 0;
+  let eligibleCount = 0;
   const eligible = (numbers) => !used.has(numbers.join(",")) && rateGame(numbers, profile).score >= MIN_DAILY_RATING;
   function consider(numbers) {
+    checked += 1;
     if (!eligible(numbers)) return;
+    eligibleCount += 1;
     if (forecast) {
       const score = forecastWeight(numbers, forecast);
       if (!best || score > best.score) best = { numbers, score };
@@ -141,7 +145,10 @@ function selectGame(model, contest, diary, profile, forecast = null) {
   if (forecast) {
     const ranked = [...NUMBERS].sort((first, second) => forecast[second - 1] - forecast[first - 1]);
     const top = ranked.slice(0, GAME_SIZE).sort((a, b) => a - b);
-    if (eligible(top)) return { numbers: top, previousCount: recent.length, lastPlayed };
+    checked += 1;
+    if (eligible(top)) {
+      return { numbers: top, previousCount: recent.length, lastPlayed, checked, eligibleCount: 1, forecastTop: true };
+    }
     // Compare one-number swaps around the forecast's top game with sampled alternatives.
     for (const replacement of ranked.slice(GAME_SIZE)) {
       for (const number of top) {
@@ -155,7 +162,7 @@ function selectGame(model, contest, diary, profile, forecast = null) {
   for (let batch = 0; !best && batch < EXTRA_CANDIDATE_BATCHES; batch += 1) {
     for (let attempt = 0; attempt < CANDIDATE_COUNT; attempt += 1) consider(sampleNumbers(random));
   }
-  return { numbers: best?.numbers ?? [], previousCount: recent.length, lastPlayed };
+  return { numbers: best?.numbers ?? [], previousCount: recent.length, lastPlayed, checked, eligibleCount, forecastTop: false };
 }
 
 export function createDailyGame(draws, diary) {
@@ -165,10 +172,14 @@ export function createDailyGame(draws, diary) {
   const forecastEnabled = forwardForecastTest(draws).supported;
   const forecast = forecastEnabled ? forecastLogWeights(model) : null;
   const profile = buildRatingProfile(draws, contest);
-  const { numbers: suggested, previousCount, lastPlayed } = selectGame(model, contest, diary, profile, forecast);
+  const { numbers: suggested, previousCount, lastPlayed, checked, eligibleCount, forecastTop } = selectGame(model, contest, diary, profile, forecast);
   const numbers = registered?.numbers ?? suggested;
+  const selected = suggested.length > 0 && suggested.every((number) => numbers.includes(number));
+  const strongestSignals = numbers.filter((number) => model.signal[number] > 0)
+    .sort((first, second) => model.signal[second] - model.signal[first]).slice(0, 3);
   return {
     contest, registered: Boolean(registered), numbers, previousCount, forecastEnabled,
+    selection: selected ? { checked, eligibleCount, forecastTop, strongestSignals } : null,
     recentDraws: model.recentCount,
     shortDraws: model.shortCount,
     historicalDraws: model.count,

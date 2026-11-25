@@ -137,6 +137,61 @@ function reportRow(entry, date, draw, officialPayouts) {
   return row;
 }
 
+function financialTotals() {
+  return {
+    games: 0,
+    spentCents: 0,
+    prizeCents: 0,
+    confirmedSpentCents: 0,
+    estimatedSpentCents: 0,
+    confirmedPrizeCents: 0,
+    officialPrizeCents: 0,
+    knownSpent: 0,
+    knownPrize: 0,
+    unconfirmedSpend: 0,
+    unavailableSpend: 0,
+    unknownPrize: 0,
+    pendingPrize: 0,
+    balanceStatus: "complete",
+    balanceCents: 0,
+  };
+}
+
+function addMoney(totals, row) {
+  totals.games += 1;
+  if (row.spentCents === null) totals.unavailableSpend += 1;
+  else {
+    totals.knownSpent += 1;
+    totals.spentCents += row.spentCents;
+    if (row.spentConfirmed) totals.confirmedSpentCents += row.spentCents;
+    else {
+      totals.unconfirmedSpend += 1;
+      totals.estimatedSpentCents += row.spentCents;
+    }
+  }
+  if (row.prizeCents !== null) {
+    totals.knownPrize += 1;
+    totals.prizeCents += row.prizeCents;
+    if (row.prizeSource === "confirmed") totals.confirmedPrizeCents += row.prizeCents;
+    if (row.prizeSource === "official") totals.officialPrizeCents += row.prizeCents;
+  }
+  if (row.prizeSource === "unavailable") totals.unknownPrize += 1;
+  if (row.prizeSource === "pending") totals.pendingPrize += 1;
+}
+
+function describeBalance(totals) {
+  const partial = totals.unavailableSpend || totals.unknownPrize || totals.pendingPrize;
+  const estimated = totals.unconfirmedSpend || totals.officialPrizeCents;
+  totals.balanceStatus = partial ? "partial" : estimated ? "estimated" : "complete";
+  totals.balanceCents = totals.games && !totals.knownSpent && !totals.knownPrize
+    ? null : totals.prizeCents - totals.spentCents;
+}
+
+function combineStatus(previous, current) {
+  if (previous === "partial" || current === "partial") return "partial";
+  return previous === "estimated" || current === "estimated" ? "estimated" : "complete";
+}
+
 export function buildDiaryReport(entries, draws, period, officialPayouts = new Map()) {
   const byContest = new Map(draws.map((draw) => [draw.contest, draw]));
   const rows = [];
@@ -149,20 +204,13 @@ export function buildDiaryReport(entries, draws, period, officialPayouts = new M
     || Date.parse(b.entry.createdAt) - Date.parse(a.entry.createdAt));
 
   const totals = {
-    games: rows.length,
+    ...financialTotals(),
     settledGames: 0,
     winningGames: 0,
-    spentCents: 0,
-    prizeCents: 0,
-    confirmedPrizeCents: 0,
-    officialPrizeCents: 0,
-    unconfirmedSpend: 0,
-    unavailableSpend: 0,
-    unknownPrize: 0,
     pendingGames: 0,
   };
   const hitCounts = { 11: 0, 12: 0, 13: 0, 14: 0, 15: 0 };
-  const buckets = period.buckets.map((item) => ({ ...item, spentCents: 0, prizeCents: 0 }));
+  const buckets = period.buckets.map((item) => ({ ...item, ...financialTotals() }));
   for (const row of rows) {
     if (row.points === null) totals.pendingGames += 1;
     else totals.settledGames += 1;
@@ -171,22 +219,51 @@ export function buildDiaryReport(entries, draws, period, officialPayouts = new M
       hitCounts[row.points] += 1;
     }
 
-    if (row.spentCents === null) totals.unavailableSpend += 1;
-    else if (!row.spentConfirmed) totals.unconfirmedSpend += 1;
-    if (row.prizeSource === "unavailable") totals.unknownPrize += 1;
-    if (row.prizeSource === "confirmed") totals.confirmedPrizeCents += row.prizeCents;
-    if (row.prizeSource === "official") totals.officialPrizeCents += row.prizeCents;
-
-    const spent = row.spentCents ?? 0;
-    const prize = row.prizeCents ?? 0;
-    totals.spentCents += spent;
-    totals.prizeCents += prize;
+    addMoney(totals, row);
     const destination = buckets.find(({ start, end }) => row.date >= start && row.date <= end);
-    if (destination) {
-      destination.spentCents += spent;
-      destination.prizeCents += prize;
-    }
+    if (destination) addMoney(destination, row);
+  }
+  describeBalance(totals);
+  let cumulative = 0;
+  let games = 0;
+  let knownAmounts = 0;
+  let status = "complete";
+  for (const bucket of buckets) {
+    describeBalance(bucket);
+    games += bucket.games;
+    knownAmounts += bucket.knownSpent + bucket.knownPrize;
+    cumulative += bucket.balanceCents ?? 0;
+    status = combineStatus(status, bucket.balanceStatus);
+    bucket.cumulativeBalanceCents = games && !knownAmounts ? null : cumulative;
+    bucket.cumulativeBalanceStatus = status;
   }
 
   return { rows, totals, hitCounts, buckets };
+}
+
+export function buildBankrollStatement(report, period, openingCents) {
+  let closingCents = openingCents;
+  let status = "complete";
+  const entries = [];
+
+  for (const row of [...report.rows].reverse()) {
+    const { date, spentCents, spentConfirmed, prizeCents, prizeSource } = row;
+    const contest = row.entry.targetContest;
+    const debitSource = spentCents === null ? "Sem valor" : spentConfirmed ? "Informado" : "Estimado";
+    const debitStatus = spentCents === null ? "partial" : spentConfirmed ? "complete" : "estimated";
+    closingCents -= spentCents ?? 0;
+    status = combineStatus(status, debitStatus);
+    entries.push({ date, contest, label: "Débito da aposta", source: debitSource,
+      amountCents: spentCents === null ? null : -spentCents, balanceCents: closingCents, status });
+
+    if (prizeCents === 0) continue;
+    const creditSource = { confirmed: "Informado", official: "Rateio da Caixa", pending: "Resultado pendente",
+      unavailable: "Rateio indisponível" }[prizeSource];
+    closingCents += prizeCents ?? 0;
+    status = combineStatus(status, prizeCents === null ? "partial" : prizeSource === "official" ? "estimated" : "complete");
+    entries.push({ date, contest, label: "Crédito de prêmio", source: creditSource,
+      amountCents: prizeCents, balanceCents: closingCents, status });
+  }
+
+  return { start: period.start, end: period.end, openingCents, closingCents, status, entries };
 }
